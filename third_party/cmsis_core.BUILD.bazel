@@ -1,0 +1,20 @@
+cc_library(
+    name = "cmsis_core",
+    hdrs = glob(
+        [
+            "Include/*.h",
+            "DSP/Include/*.h",
+        ],
+    ),
+    includes = [
+        "Include",
+        "DSP/Include",
+    ],
+    deps = [
+        ":cc_defines",
+    ],
+)
+label_flag(
+    name = "cc_defines",
+    build_setting_default = "@pigweed//pw_build:empty_cc_library",
+)

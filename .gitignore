@@ -1,0 +1,21 @@
+.repo
+
+# Bazel build outputs
+bazel-*
+
+# User-specific Bazel config
+user.bazelrc
+MODULE.bazel.lock
+
+# Editor / IDE
+*.swo
+*.swp
+.vscode/
+.cache/
+compile_commands.json
+external
+graph.dot
+
+# STM32
+STM32L475.svd
+

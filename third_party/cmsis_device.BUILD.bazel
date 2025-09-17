@@ -1,0 +1,34 @@
+package(default_visibility = ["//visibility:public"])
+
+label_flag(
+    name = "cmsis_core",
+    build_setting_default = ":unspecified",
+)
+
+cc_library(
+    name = "unspecified",
+    target_compatible_with = ["@platforms//:incompatible"],
+)
+
+cc_library(
+    name = "default_cmsis_init",
+    srcs = glob(["Source/Templates/system_*.c"]),
+    deps = [":cmsis_device"],
+    alwayslink = 1,
+)
+
+cc_library(
+    name = "cmsis_device",
+    hdrs = glob(
+        [
+            "Include/*.h",
+        ],
+    ),
+    defines = [
+        "__ARMCC_VERSION=0",
+    ],
+    includes = ["Include"],
+    deps = [
+        ":cmsis_core",
+    ],
+)

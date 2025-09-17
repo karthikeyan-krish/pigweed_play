@@ -1,0 +1,76 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@pigweed//pw_build:binary_tools.bzl", "pw_elf_to_bin")
+load("//targets:transition.bzl", "stm32l4xx_cc_binary")
+load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "openocd_stm32l4xx.cfg",
+])
+
+cc_binary(
+    name = "application",
+    srcs = glob(
+    [
+    	"include/main.h",
+        "src/application/*.h",
+    	"src/application/*.cc",
+    	"src/application/*.c",
+        "src/application/threads/*.h",
+        "src/bsp/*.h",
+        "src/bsp/*.c",
+    ]),
+    includes = [
+        "include",
+        "src/application",
+        "src/bsp",
+    ],
+    deps = [
+        "//targets/stm32l4xx:linker_script",
+        ":startup",
+        "@cmsis_device//:default_cmsis_init", 
+        "@stm32l4xx_hal_driver//:hal_driver",
+        "@freertos",
+        "@freertos//:freertos_config",
+        "@pigweed//pw_log",
+        "@pigweed//pw_sys_io_stm32cube",
+        "@pigweed//pw_assert:backend_impl",
+        "@pigweed//pw_assert:check_backend_impl",
+        "@pigweed//pw_assert:assert_backend_impl",
+        "@pigweed//pw_chrono:system_clock",
+        "@pigweed//pw_chrono:system_timer",
+        "@pigweed//pw_containers:inline_queue",
+        "@pigweed//pw_thread:sleep",
+        "@pigweed//pw_thread:thread_core",
+        "@pigweed//pw_string",
+        "@pigweed//pw_system:work_queue",
+        "@pigweed//pw_sync:mutex",
+        "@pigweed//pw_sync:thread_notification",
+    ],
+    copts = ["-mcpu=cortex-m4", "-mthumb"],
+)
+
+cc_library(
+    name = "startup",
+    srcs = ["startup/startup_stm32l475xx.s"],
+    alwayslink = True,
+)
+
+stm32l4xx_cc_binary(
+    name = "application.elf",
+    binary = ":application",
+)
+
+pw_elf_to_bin(
+    name = "application_binary",
+    bin_out = "application.bin",
+    elf_input = ":application.elf",
+)
+
+refresh_compile_commands(
+    name = "blinky_compdb",
+    targets = [
+        "//apps:application.elf",
+    ],
+)

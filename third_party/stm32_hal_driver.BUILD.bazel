@@ -1,0 +1,105 @@
+# buildifier: disable=module-docstring
+# Must point to a cc_library exposing a header named stm32f4xx_hal_conf.h (or
+# similar for other families) that contains the HAL configuration
+
+package(default_visibility = ["//visibility:public"])
+
+label_flag(
+    name = "hal_config",
+    build_setting_default = ":unspecified",
+)
+
+# May point to a non-default implementation of timebase.
+label_flag(
+    name = "timebase",
+    build_setting_default = ":default_timebase",
+)
+
+# Should point to the corresponding cmsis_device library. Hidden behind a label
+# flag so that it can be overriden in projects that build for more than one
+# family of STM processors.
+label_flag(
+    name = "cmsis_device",
+    build_setting_default = ":unspecified",
+)
+
+label_flag(
+    name = "cmsis_init",
+    build_setting_default = ":unspecified",
+)
+
+# Special target used as a default value of the hal_config label_flag. It's not
+# compatible with any platform: To use Pigweed's STM32Cube integration, you
+# must provide a hal_config.
+cc_library(
+    name = "unspecified",
+    target_compatible_with = ["@platforms//:incompatible"],
+)
+
+_DISABLED_WARNINGS = [
+    "-Wno-unused-parameter",
+    "-Wno-redundant-decls",
+    "-Wno-sign-compare",
+    "-Wno-undef",
+    "-Wno-implicit-function-declaration",
+    "-Wno-switch-enum",
+]
+
+cc_library(
+    name = "default_timebase",
+    srcs = glob(["Src/*_hal_timebase_tim_template.c"]),
+    copts = _DISABLED_WARNINGS,
+    deps = [":hal_driver_without_timebase"],
+)
+
+cc_library(
+    name = "hal_driver",
+    copts = _DISABLED_WARNINGS,
+    deps = [
+        ":hal_driver_without_timebase",
+        ":timebase",
+    ],
+)
+
+cc_library(
+    name = "hal_driver_without_timebase",
+    srcs = glob(
+        [
+            "Src/*.c",
+            "Src/Legacy/*.c",
+        ],
+        exclude = ["Src/*_template.c"],
+    ),
+    copts = _DISABLED_WARNINGS,
+    deps = [
+        ":cmsis_device",
+        ":cmsis_init",
+        ":hal_headers",
+    ],
+)
+
+cc_library(
+    name = "hal_headers",
+    hdrs = glob(
+        [
+            "Inc/*.h",
+            "Inc/Legacy/*.h",
+        ],
+        exclude = [
+            # Excluded because implementers may want to override this template.
+            "Inc/*_hal_conf_template.h",
+        ],
+    ),
+    copts = _DISABLED_WARNINGS,
+    defines = [
+        "USE_HAL_DRIVER",
+    ],
+    includes = [
+        "Inc",
+        "Inc/Legacy",
+    ],
+    deps = [
+        ":cmsis_device",
+        ":hal_config",
+    ],
+)

@@ -1,0 +1,83 @@
+module(name = "bms-fw")
+
+bazel_dep(name = "bazel_skylib", version = "1.8.1")
+bazel_dep(name = "freertos", version = "10.5.1.bcr.2")
+bazel_dep(name = "pigweed")
+bazel_dep(name = "rules_cc", version = "0.1.2")
+bazel_dep(name = "platforms", version = "0.0.11")
+bazel_dep(name = "rules_python", version = "1.5.3")
+bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
+
+git_override(
+    module_name = "pigweed",
+    commit = "2b23689560196ea206283712f65093f3d48ab148",
+    remote = "https://pigweed.googlesource.com/pigweed/pigweed",
+)
+
+http_archive = use_repo_rule(
+    "@bazel_tools//tools/build_defs/repo:http.bzl",
+    "http_archive",
+)
+
+http_archive(
+    name = "stm32l4xx_hal_driver",
+    urls = ["https://github.com/STMicroelectronics/stm32l4xx_hal_driver/archive/refs/tags/v1.13.0.tar.gz"],
+    strip_prefix = "stm32l4xx-hal-driver-1.13.0",
+    sha256 = "f2cce4e28ab477c37f680376b4bb7584c80829e290e79e6de705b879cc4273c6",
+    build_file = "//third_party:stm32_hal_driver.BUILD.bazel",
+)
+
+http_archive(
+    name = "cmsis_device",
+    build_file = "//third_party:cmsis_device.BUILD.bazel",
+    sha256 = "221f1291af49d8da3e72a57dd74cba9b2ebebea7ab0e783bece28f3216e026c6",
+    strip_prefix = "cmsis-device-l4-1.7.1",
+    urls = ["https://github.com/STMicroelectronics/cmsis-device-l4/archive/refs/tags/v1.7.1.tar.gz"],
+)
+
+http_archive(
+    name = "cmsis_core",
+    build_file = "//third_party:cmsis_core.BUILD.bazel",
+    sha256 = "34bb7d1d210849bbf2c28eb7c01fec83613562b719651d3abd6acbed4422ba26",
+    strip_prefix = "cmsis-core-5.6.0",
+    urls = ["https://github.com/STMicroelectronics/cmsis_core/archive/refs/tags/v5.6.0.tar.gz"],
+)
+
+http_archive(
+    name = "openocd",
+    urls = ["https://github.com/xpack-dev-tools/openocd-xpack/releases/download/v0.12.0-6/xpack-openocd-0.12.0-6-linux-x64.tar.gz"],
+    sha256 = "7e762af5f9a4f21ac03130ddce36acf996f3e67c4ee1526ed3d4f8ad89e65c77",
+    strip_prefix = "xpack-openocd-0.12.0-6",
+    build_file_content = """
+    package(default_visibility = ["//visibility:public"])
+
+    exports_files(["bin/openocd"])
+
+    exports_files(glob(["openocd/scripts/**"]))
+    """,
+)
+
+archive_override(
+    module_name = "hedron_compile_commands",
+    integrity = "sha256-twHI8300PvX9eTiGi14d5+qtNaJ1xF0jW/6SSg1D738=",
+    strip_prefix = "bazel-compile-commands-extractor-163521345aa6366fd1ed801b989b668b5c806f69",
+    urls = ["https://github.com/chadnorvell/bazel-compile-commands-extractor/archive/163521345aa6366fd1ed801b989b668b5c806f69.tar.gz"],
+)
+
+git_repository = use_repo_rule(
+    "@bazel_tools//tools/build_defs/repo:git.bzl",
+    "git_repository",
+)
+
+git_repository(
+    name = "bazel_clang_tidy",
+    commit = "db677011c7363509a288a9fb3bf0a50830bbf791",
+    remote = "https://github.com/erenon/bazel_clang_tidy.git",
+)
+
+register_toolchains(
+    "@pigweed//pw_toolchain/arm_gcc:arm_gcc_cc_toolchain_cortex-m4",
+    "@pigweed//pw_toolchain/host_clang:host_cc_toolchain_linux",
+    dev_dependency = True,
+)
+

@@ -1,0 +1,78 @@
+load("@pigweed//pw_build:merge_flags.bzl", "flags_from_dict")
+load("@pigweed//pw_build:pigweed.bzl", "pw_linker_script")
+load("@pigweed//third_party/freertos:flags.bzl", "FREERTOS_FLAGS")
+
+package(default_visibility = ["//visibility:public"])
+
+platform(
+    name = "platform",
+    constraint_values = [
+        "@freertos//:port_ARM_CM4F",
+        "@freertos//:malloc_heap_4",
+        "@freertos//:disable_task_statics",
+        "@pigweed//pw_build/constraints/rtos:freertos",
+        "@pigweed//pw_interrupt_cortex_m:backend",
+        "@platforms//cpu:armv7e-m",
+        "@platforms//os:none",
+        "@pigweed//pw_build/constraints/arm:cortex-m4",
+    ],
+    flags = flags_from_dict(FREERTOS_FLAGS | {
+	    "@cmsis_core//:cc_defines": ":cc_defines",
+	    "@cmsis_device//:cmsis_core": "@cmsis_core",
+	    "@freertos//:freertos_config": ":freertos_config",
+	    "@stm32l4xx_hal_driver//:cmsis_device": "@cmsis_device",
+	    "@stm32l4xx_hal_driver//:cmsis_init": "@cmsis_device//:default_cmsis_init",
+	    "@stm32l4xx_hal_driver//:hal_config": ":hal_config",
+	    "@pigweed//pw_malloc:backend": "@pigweed//pw_malloc_freelist",
+	    "@pigweed//pw_assert:backend": "@pigweed//pw_assert_log:check_backend",
+	    "@pigweed//pw_assert:backend_impl": "@pigweed//pw_assert_log:check_backend",
+	    "@pigweed//pw_assert:check_backend": "@pigweed//pw_assert_basic",
+	    "@pigweed//pw_assert:check_backend_impl": "@pigweed//pw_assert_basic:impl",
+	    "@pigweed//pw_log:backend": "@pigweed//pw_log_basic",
+        "@pigweed//pw_log:backend_impl": "@pigweed//pw_log_basic:impl",
+        "@pigweed//pw_sys_io:backend": "@pigweed//pw_sys_io_stm32cube",
+        "@pigweed//pw_sys_io_stm32cube:config_override": "pw_sys_io_stm32cube_config_override",
+        "@pigweed//third_party/stm32cube:hal_driver": "@stm32l4xx_hal_driver//:hal_driver",
+    }),
+)
+
+cc_library(
+    name = "cc_defines",
+    defines = [
+        "STM32CUBE_HEADER=\\\"stm32l4xx.h\\\"",
+        "STM32L475xx",
+    ],
+)
+
+cc_library(
+    name = "hal_config",
+    hdrs = ["config/stm32l4xx_hal_conf.h"],
+    includes = ["config"],
+)
+
+pw_linker_script(
+    name = "linker_script",
+    linker_script = "ldscripts/stm32l475vgtx_flash.ld",
+)
+
+cc_library(
+    name = "freertos_config",
+    hdrs = [
+        "config/FreeRTOSConfig.h",
+    ],
+    includes = ["config/"],
+    deps = [
+        "@pigweed//pw_preprocessor",
+        "@pigweed//third_party/freertos:config_assert",
+    ],
+)
+
+cc_library(
+    name = "pw_sys_io_stm32cube_config_override",
+    defines = [
+        "PW_SYS_IO_STM32CUBE_GPIO_PORT=B",
+        "PW_SYS_IO_STM32CUBE_GPIO_TX_PIN=6",
+        "PW_SYS_IO_STM32CUBE_GPIO_RX_PIN=7",
+        "PW_SYS_IO_STM32CUBE_GPIO_REMAP=DISABLE",
+    ],
+)

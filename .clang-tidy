@@ -1,0 +1,25 @@
+UseColor: true
+
+Checks: >
+    bugprone-*,
+    clang-diagnostic-*,
+    -clang-analyzer-*,
+    misc-*,
+    modernize-use-nullptr,
+    modernize-use-override,
+    modernize-use-equals-delete,
+    performance-*,
+    readability-container-size-empty,
+    readability-misleading-indentation,
+    readability-redundant-control-flow,
+    readability-redundant-smartptr-get,
+    readability-string-compare
+
+WarningsAsErrors: >
+    bugprone-*,
+    performance-*,
+    clang-diagnostic-unused-variable,
+    clang-diagnostic-unused-parameter
+
+HeaderFilterRegex: '.*'
+ExcludeHeaderFilterRegex: 'external/.*'

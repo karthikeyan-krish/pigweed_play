@@ -28,34 +28,35 @@ Planned extensions:
 ---
 
 ## 📂 Project Structure
-
-play-fm/
-├── apps/ # Application code (Active Objects, state machines)
+```
+📂 play-fm/
+├── apps/                       # Application code (Active Objects, state machines)
 │   ├── include/
-│   |   └── main.h
+│   │   └── main.h
 │   ├── src/
-|   |   └── application/
-|   |   |   ├── main.cc
-|   |   |   ├── stm32l4xx_it.c
-|   |   |   ├── stm32l4xx_it.h
-|   |   |   └── threads/
-|   |   |       └── active_object.h
-|   |   └── bsp/
-|   |       ├── gpio.c
-|   |       └── gpio.h
+│   │   ├── application/
+│   │   │   ├── main.cc
+│   │   │   ├── stm32l4xx_it.c
+│   │   │   ├── stm32l4xx_it.h
+│   │   │   └── threads/
+│   │   │       └── active_object.h
+│   │   └── bsp/
+│   │       ├── gpio.c
+│   │       └── gpio.h
 │   └── startup/
-|       └── startup_stm32l475xx.s
-├── targets/ # Platform-specific configuration
-|   └── stm32l4xx
-|       └── config/
-|           ├── FreeRTOSConfig.h
-|           └── stm32l4xx_hal_conf.h
-├── third_party/ # External deps (ignored in git)
-├── tools/ # Script to flash the program
-|   └── flash.py
-├── MODULE # Bazel MODULE file
-├── BUILD.bazel # Bazel build rules
+│       └── startup_stm32l475xx.s
+├── targets/                    # Platform-specific configuration
+│   └── stm32l4xx/
+│       └── config/
+│           ├── FreeRTOSConfig.h
+│           └── stm32l4xx_hal_conf.h
+├── third_party/                # External dependencies (ignored in git)
+├── tools/                      # Scripts to flash the program
+│   └── flash.py
+├── MODULE                      # Bazel MODULE file
+├── BUILD.bazel                 # Bazel build rules
 └── README.md
+```
 
 
 ---

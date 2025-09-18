@@ -1,4 +1,4 @@
-# play-fm 🎛️
+# pigweed_play 🎛️
 
 [![Build with Bazel](https://img.shields.io/badge/build-Bazel-green)](https://bazel.build)
 ![FreeRTOS](https://img.shields.io/badge/RTOS-FreeRTOS-blue)
@@ -11,7 +11,7 @@ A demo embedded project to showcase modern C++ design, FreeRTOS, and Pigweed int
 ---
 
 ## 🚀 Overview
-`play-fm` is a small embedded firmware project designed to demonstrate:
+`pigweed_play` is a small embedded firmware project designed to demonstrate:
 - Event-driven architecture using **Active Objects (AO)**
 - Threading with **FreeRTOS (via Pigweed)**
 - Structured logging with **Pigweed log**
@@ -29,7 +29,7 @@ Planned extensions:
 
 ## 📂 Project Structure
 ```
-📂 play-fm/
+📂 pigweed_play/
 ├── apps/                       # Application code (Active Objects, state machines)
 │   ├── include/
 │   │   └── main.h
@@ -109,8 +109,8 @@ Planned extensions:
 ## ⚡ Build & Run
 ```bash
 # Clone project
-git clone https://github.com/karthikeyan-krish/play-fm.git
-cd play-fm
+git clone https://github.com/karthikeyan-krish/pigweed_play.git
+cd pigweed_play
 
 # Build with Bazel
 bazel build //apps:application.elf --platforms=//targets/stm32l4xx:platform

@@ -17,7 +17,6 @@ cc_binary(
         "src/application/*.h",
     	"src/application/*.cc",
     	"src/application/*.c",
-        "src/application/threads/*.h",
         "src/bsp/*.h",
         "src/bsp/*.c",
     ]),
@@ -27,6 +26,7 @@ cc_binary(
         "src/bsp",
     ],
     deps = [
+        ":active_object_lib",
         "//targets/stm32l4xx:linker_script",
         ":startup",
         "@cmsis_device//:default_cmsis_init", 
@@ -44,10 +44,26 @@ cc_binary(
         "@pigweed//pw_thread:thread_core",
         "@pigweed//pw_string",
         "@pigweed//pw_system:work_queue",
-        "@pigweed//pw_sync:mutex",
-        "@pigweed//pw_sync:thread_notification",
     ],
     copts = ["-mcpu=cortex-m4", "-mthumb"],
+)
+
+cc_library(
+    name = "active_object_lib",
+    hdrs = glob(["src/application/threads/*.h",]),
+    deps = [
+        "@pigweed//pw_assert:backend_impl",
+        "@pigweed//pw_assert:check_backend_impl",
+        "@pigweed//pw_assert:assert_backend_impl",
+        "@pigweed//pw_chrono:system_timer",
+        "@pigweed//pw_thread:thread_core",
+        "@pigweed//pw_sync:mutex",
+        "@pigweed//pw_sync:thread_notification",
+        "@pigweed//pw_containers:inline_queue",
+    ],
+)
+
+    ],
 )
 
 cc_library(

@@ -2,6 +2,7 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@pigweed//pw_build:binary_tools.bzl", "pw_elf_to_bin")
 load("//targets:transition.bzl", "stm32l4xx_cc_binary")
 load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
+load("@pigweed//pw_build:pigweed.bzl", "pw_cc_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -17,7 +18,6 @@ cc_binary(
         "src/application/*.h",
     	"src/application/*.cc",
     	"src/application/*.c",
-        "src/application/threads/*.h",
         "src/bsp/*.h",
         "src/bsp/*.c",
     ]),
@@ -27,6 +27,7 @@ cc_binary(
         "src/bsp",
     ],
     deps = [
+        ":active_object_lib",
         "//targets/stm32l4xx:linker_script",
         ":startup",
         "@cmsis_device//:default_cmsis_init", 
@@ -40,15 +41,40 @@ cc_binary(
         "@pigweed//pw_assert:assert_backend_impl",
         "@pigweed//pw_chrono:system_clock",
         "@pigweed//pw_chrono:system_timer",
-        "@pigweed//pw_containers:inline_queue",
         "@pigweed//pw_thread:sleep",
         "@pigweed//pw_thread:thread_core",
         "@pigweed//pw_string",
         "@pigweed//pw_system:work_queue",
-        "@pigweed//pw_sync:mutex",
-        "@pigweed//pw_sync:thread_notification",
     ],
     copts = ["-mcpu=cortex-m4", "-mthumb"],
+)
+
+cc_library(
+    name = "active_object_lib",
+    hdrs = glob(["src/application/threads/*.h",]),
+    deps = [
+        "@pigweed//pw_assert:backend_impl",
+        "@pigweed//pw_assert:check_backend_impl",
+        "@pigweed//pw_assert:assert_backend_impl",
+        "@pigweed//pw_chrono:system_timer",
+        "@pigweed//pw_thread:thread_core",
+        "@pigweed//pw_sync:mutex",
+        "@pigweed//pw_sync:thread_notification",
+        "@pigweed//pw_containers:inline_queue",
+    ],
+)
+
+pw_cc_test(
+    name = "active_object_test",
+    srcs = ["src/application/threads/test/active_object_test.cc"],
+    deps = [
+        ":active_object_lib",
+        "@pigweed//pw_allocator:testing",
+        "@pigweed//pw_async2:dispatcher",
+        "@pigweed//pw_async2:simulated_time_provider",
+        "@pigweed//pw_chrono:system_clock",
+        "@pigweed//pw_unit_test",
+    ],
 )
 
 cc_library(

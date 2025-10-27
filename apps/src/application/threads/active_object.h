@@ -3,7 +3,6 @@
 #include <pw_assert/check.h>
 #include <pw_thread/thread_core.h>
 #include <pw_chrono/system_timer.h>
-#include <pw_thread_freertos/options.h>
 #include <pw_sync/mutex.h>
 #include <pw_sync/thread_notification.h>
 #include <pw_containers/inline_queue.h>

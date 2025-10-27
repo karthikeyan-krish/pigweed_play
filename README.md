@@ -16,12 +16,12 @@ A demo embedded project to showcase modern C++ design, FreeRTOS, and Pigweed int
 - Threading with **FreeRTOS (via Pigweed)**
 - Structured logging with **Pigweed log**
 - Hardware control through a simple **BSP (Board Support Package)**
+- Unit testing with **Google Test**
 
 Planned extensions:
 - Finite State Machines (FSMs) for robust control logic
 - Sensor driver libraries (accelerometer/temperature)
 - Remote communication using **gRPC**
-- Unit testing with **Google Test**
 - Embedded Linux integration using **Yocto**
 - GitHub Actions CI workflow for Bazel
 
@@ -40,6 +40,8 @@ Planned extensions:
 │   │   │   ├── stm32l4xx_it.h
 │   │   │   └── threads/
 │   │   │       └── active_object.h
+|   |   |       └── test/
+|   |   |           └── active_object_test.cc
 │   │   └── bsp/
 │   │       ├── gpio.c
 │   │       └── gpio.h
@@ -67,11 +69,11 @@ Planned extensions:
 - ✅ **FreeRTOS integration** via Pigweed `pw_thread_freertos`
 - ✅ **ActiveObject pattern** using Pigweed’s thread and sync primitives
 - ✅ Structured **logging** with Pigweed log
+- ✅ Integrate **Google Test** for unit testing AO
 
 ---
 
 ## 🛠️ Planned Work
-- [ ] Integrate **Google Test** for unit testing AO and BSP layers
 - [ ] Add **state machine framework** for AO event handling
 - [ ] Add **gRPC service** for remote communication (host ↔ device)
 - [ ] Explore **Yocto recipes** to integrate with embedded Linux

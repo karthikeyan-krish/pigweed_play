@@ -40,7 +40,6 @@ cc_binary(
         "@pigweed//pw_assert:assert_backend_impl",
         "@pigweed//pw_chrono:system_clock",
         "@pigweed//pw_chrono:system_timer",
-        "@pigweed//pw_containers:inline_queue",
         "@pigweed//pw_thread:sleep",
         "@pigweed//pw_thread:thread_core",
         "@pigweed//pw_string",

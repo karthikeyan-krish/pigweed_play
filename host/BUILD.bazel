@@ -1,0 +1,15 @@
+platform(
+    name = "host",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+cc_library(
+    name = "pw_log_basic_config_override",
+    defines = [
+        "PW_LOG_SHOW_MODULE=1",
+    ],
+)
+

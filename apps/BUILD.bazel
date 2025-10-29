@@ -28,6 +28,7 @@ cc_binary(
     ],
     deps = [
         ":active_object_lib",
+        ":state_machine_lib",
         "//targets/stm32l4xx:linker_script",
         ":startup",
         "@cmsis_device//:default_cmsis_init", 
@@ -62,6 +63,12 @@ cc_library(
         "@pigweed//pw_sync:thread_notification",
         "@pigweed//pw_containers:inline_queue",
     ],
+)
+
+cc_library(
+    name = "state_machine_lib",
+    hdrs = glob(["src/application/threads/state_machine.h",]),
+    srcs = ["src/application/threads/state_machine.cc"],
 )
 
 pw_cc_test(

@@ -51,7 +51,7 @@ cc_binary(
 
 cc_library(
     name = "active_object_lib",
-    hdrs = glob(["src/application/threads/*.h",]),
+    hdrs = glob(["src/application/threads/active_object.h",]),
     deps = [
         "@pigweed//pw_assert:backend_impl",
         "@pigweed//pw_assert:check_backend_impl",

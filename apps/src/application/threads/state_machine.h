@@ -42,4 +42,14 @@ class State {
   virtual void Exit(StateMachineContext& smc);
 };
 
+// Idle substate class
+class StateIdle : public State {
+ public:
+  static StateIdle& instance();
+
+  void HandleButtonPress(StateMachineContext& smc) override;
+  void Entry(StateMachineContext& smc) override;
+  void Exit(StateMachineContext& smc) override;
+};
+
 }  // namespace play::thread

@@ -258,6 +258,15 @@ extern "C" int main(void) {
       }};
   fsm = &fsm_instance;
 
+  static ButtonObject button_instance{[]() {
+    fsm_mutex_.lock();
+    fsm->HandleButtonRelease();
+    fsm_mutex_.unlock();
+  }};
+  button = &button_instance;
+
+  fsm->Start();
+
   vTaskStartScheduler();
 
   while (1) {

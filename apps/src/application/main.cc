@@ -246,6 +246,18 @@ extern "C" int main(void) {
   StartWorkQueueThread();
   pw::system::GetWorkQueue().CheckPushWork(StartLEDThread);
 
+  static play::thread::StateMachineContext fsm_instance{
+      [](const play::thread::State* prev_state,
+         const play::thread::State* state) {
+        if (prev_state == &play::thread::StateButtonPressed::instance()) {
+          button->StopWatchdog();
+        }
+        if (state == &play::thread::StateButtonPressed::instance()) {
+          button->StartWatchdog();
+        }
+      }};
+  fsm = &fsm_instance;
+
   vTaskStartScheduler();
 
   while (1) {

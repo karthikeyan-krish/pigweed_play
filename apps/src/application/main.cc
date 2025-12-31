@@ -226,7 +226,11 @@ static void StartWorkQueueThread() {
 }
 
 static void ButtonPressed() {
+  fsm_mutex_.lock();
+  if (fsm != nullptr) {
+    fsm->HandleButtonPress();
   }
+  fsm_mutex_.unlock();
 }
 
 }  // namespace

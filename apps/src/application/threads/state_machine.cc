@@ -10,6 +10,11 @@ StateMachineContext::StateMachineContext(StateChangeCb&& state_change_cb)
       state_change_cb_(std::move(state_change_cb)),
       button_pressed_(false) {}
 
+int StateMachineContext::Start() {
+  SetState(&StateIdle::instance());
+  return 0;
+}
+
 void StateMachineContext::SetState(State* new_state) {
   if (curr_state_ != nullptr) {
     curr_state_->Exit(*this);

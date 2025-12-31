@@ -40,6 +40,8 @@ Planned extensions:
 │   │   │   ├── stm32l4xx_it.h
 │   │   │   └── threads/
 │   │   │       └── active_object.h
+|   |   |       └── state_machine.cc
+|   |   |       └── state_machine.h
 |   |   |       └── test/
 |   |   |           └── active_object_test.cc
 │   │   └── bsp/
@@ -70,11 +72,11 @@ Planned extensions:
 - ✅ **ActiveObject pattern** using Pigweed’s thread and sync primitives
 - ✅ Structured **logging** with Pigweed log
 - ✅ Integrate **Google Test** for unit testing AO
+- ✅ Add **state machine framework** for AO event handling
 
 ---
 
 ## 🛠️ Planned Work
-- [ ] Add **state machine framework** for AO event handling
 - [ ] Add **gRPC service** for remote communication (host ↔ device)
 - [ ] Explore **Yocto recipes** to integrate with embedded Linux
 - [ ] Integrate **GitHub Actions CI** workflow for Bazel

@@ -1,0 +1,97 @@
+#include "state_machine.h"
+
+#include <pw_log/log.h>
+
+namespace play::thread {
+
+StateMachineContext::StateMachineContext(StateChangeCb&& state_change_cb)
+    : prev_state_(nullptr),
+      curr_state_(nullptr),
+      state_change_cb_(std::move(state_change_cb)),
+      button_pressed_(false) {}
+
+int StateMachineContext::Start() {
+  SetState(&StateIdle::instance());
+  return 0;
+}
+
+void StateMachineContext::HandleButtonPress() {
+  if (curr_state_ != nullptr) {
+    curr_state_->HandleButtonPress(*this);
+  }
+}
+
+void StateMachineContext::HandleButtonRelease() {
+  if (curr_state_ != nullptr) {
+    curr_state_->HandleButtonRelease(*this);
+  }
+}
+
+void StateMachineContext::SetState(State* new_state) {
+  if (curr_state_ != nullptr) {
+    curr_state_->Exit(*this);
+  }
+  prev_state_ = curr_state_;
+  curr_state_ = new_state;
+  if (curr_state_ != nullptr) {
+    curr_state_->Entry(*this);
+  }
+  state_change_cb_(prev_state_, curr_state_);
+}
+
+// Abstract base state class
+void State::HandleButtonPress(StateMachineContext& smc) {
+  static_cast<void>(smc);
+  PW_LOG_DEBUG("Unhandled ButtonPress event");
+}
+
+void State::HandleButtonRelease(StateMachineContext& smc) {
+  static_cast<void>(smc);
+  PW_LOG_DEBUG("Unhandled ButtonRelease event");
+}
+
+void State::Entry(StateMachineContext& smc) { static_cast<void>(smc); }
+
+void State::Exit(StateMachineContext& smc) { static_cast<void>(smc); }
+
+// Idle substate class
+StateIdle& StateIdle::instance() {
+  static StateIdle instance;
+  return instance;
+}
+
+void StateIdle::HandleButtonPress(StateMachineContext& smc) {
+  smc.SetState(&StateButtonPressed::instance());
+}
+
+void StateIdle::Entry(StateMachineContext& smc) {
+  smc.SetButtonPressed(false);
+  PW_LOG_INFO("Entering StateIdle");
+}
+
+void StateIdle::Exit(StateMachineContext& smc) {
+  static_cast<void>(smc);
+  PW_LOG_INFO("Exiting StateIdle");
+}
+
+// ButtonPressed substate class
+StateButtonPressed& StateButtonPressed::instance() {
+  static StateButtonPressed instance;
+  return instance;
+}
+
+void StateButtonPressed::HandleButtonRelease(StateMachineContext& smc) {
+  smc.SetState(&StateIdle::instance());
+}
+
+void StateButtonPressed::Entry(StateMachineContext& smc) {
+  smc.SetButtonPressed(true);
+  PW_LOG_INFO("Entering StateButtonPressed");
+}
+
+void StateButtonPressed::Exit(StateMachineContext& smc) {
+  static_cast<void>(smc);
+  PW_LOG_INFO("Exiting StateButtonPressed");
+}
+
+}  // namespace play::thread

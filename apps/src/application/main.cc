@@ -13,6 +13,7 @@
 
 #include "gpio.h"
 #include "threads/active_object.h"
+#include "threads/state_machine.h"
 
 namespace {
 using namespace std::chrono_literals;
@@ -26,8 +27,7 @@ static constexpr auto kMorseBData = 0xE22A3800U;
 
 enum class ThreadPriority : UBaseType_t {
   kLEDPriority = tskIDLE_PRIORITY + 1,
-  kButtonPriority = tskIDLE_PRIORITY + 2,
-  kWorkQueue = tskIDLE_PRIORITY + 3,
+  kWorkQueue = tskIDLE_PRIORITY + 2,
   kNumPriorities,
 };
 
@@ -35,7 +35,6 @@ static_assert(static_cast<UBaseType_t>(ThreadPriority::kNumPriorities) <=
               configMAX_PRIORITIES);
 
 constexpr size_t kLEDStackSizeWords = 512;
-constexpr size_t kButtonStackSizeWords = 512;
 constexpr size_t kWorkQueueThreadWords = 512;
 
 struct AoEventLED {
@@ -46,14 +45,7 @@ struct AoEventLED {
   } type;
 };
 
-struct AoEventButton {
-  enum class Type : uint8_t {
-    kInit,
-    kToggle,
-    kPress,
-    kRelease,
-  } type;
-};
+pw::sync::Mutex fsm_mutex_;
 
 }  // namespace
 
@@ -155,70 +147,63 @@ class LEDActiveObject : public play::thread::ActiveObjectCore<AoEventLED, 8> {
   pw::chrono::SystemClock::duration morse_b_period_;
 };
 
-class ButtonActiveObject
-    : public play::thread::ActiveObjectCore<AoEventButton, 8> {
+class ButtonObject {
  public:
-  ButtonActiveObject()
-      : button_watchdog_timer_(
-            [this](pw::chrono::SystemClock::time_point expired_deadline) {
-              bool pressed = bsp_button_status();
+  using ReleaseHandler = pw::Function<void()>;
 
+  explicit ButtonObject(ReleaseHandler on_release)
+      : on_release_(std::move(on_release)),
+        button_watchdog_timer_(
+            [this](pw::chrono::SystemClock::time_point expired_deadline) {
+              if (!watchdog_enabled_) {
+                return;
+              }
+              bool pressed = bsp_button_status();
               if (pressed && !last_state_) {
                 last_state_ = true;
                 blink_timer_.InvokeAfter(blink_period_);
               } else if (!pressed && last_state_) {
                 last_state_ = false;
-                if (this->Post({AoEventButton::Type::kRelease}) != true) {
-                  PW_LOG_ERROR(
-                      "ButtonActiveObject queue full, dropping Release event");
-                }
-                return;
+                if (on_release_)
+                  on_release_();
               }
-              button_watchdog_timer_.InvokeAt(expired_deadline +
-                                              button_watchdog_period_);
+              if (watchdog_enabled_) {
+                button_watchdog_timer_.InvokeAt(expired_deadline +
+                                                button_watchdog_period_);
+              }
             }),
         blink_timer_([this](pw::chrono::SystemClock::time_point) {
-          if (this->Post({AoEventButton::Type::kToggle}) != true) {
-            PW_LOG_ERROR(
-                "ButtonActiveObject queue full, dropping Toggle event");
-          }
+          bsp_led_blue_toggle();
           blink_timer_.InvokeAfter(blink_period_);
         }),
         button_watchdog_period_(kButtonWatchdogPeriod),
         blink_period_(kLedBlinkPeriod),
         last_state_(false) {}
 
- protected:
-  void HandleEvent(const AoEventButton& ev) override {
-    switch (ev.type) {
-      case AoEventButton::Type::kInit:
-        bsp_led_blue_off();
-        break;
-      case AoEventButton::Type::kToggle:
-        bsp_led_blue_toggle();
-        break;
-      case AoEventButton::Type::kPress:
-        button_watchdog_timer_.InvokeAfter(button_watchdog_period_);
-        break;
-      case AoEventButton::Type::kRelease:
-        button_watchdog_timer_.Cancel();
-        blink_timer_.Cancel();
-        bsp_led_blue_off();
-        break;
-      default:
-        PW_LOG_ERROR("ButtonActiveObject received unknown event");
-        PW_ASSERT(false);
-        break;
-    }
+  void StartWatchdog() {
+    watchdog_enabled_ = true;
+    button_watchdog_timer_.InvokeAfter(button_watchdog_period_);
+  }
+
+  void StopWatchdog() {
+    watchdog_enabled_ = false;
+    button_watchdog_timer_.Cancel();
+    blink_timer_.Cancel();
+    bsp_led_blue_off();
   }
 
  private:
+  ReleaseHandler on_release_;
   pw::chrono::SystemTimer button_watchdog_timer_;
   pw::chrono::SystemTimer blink_timer_;
   pw::chrono::SystemClock::duration button_watchdog_period_;
   pw::chrono::SystemClock::duration blink_period_;
   bool last_state_;
+  bool watchdog_enabled_ = false;
 };
+
+play::thread::StateMachineContext* fsm = nullptr;
+ButtonObject* button = nullptr;
 
 static LEDActiveObject led_ao;
 static void StartLEDThread() {
@@ -228,16 +213,6 @@ static void StartLEDThread() {
           .set_priority(static_cast<UBaseType_t>(ThreadPriority::kLEDPriority))
           .set_stack_size(kLEDStackSizeWords),
       led_ao);
-}
-
-static ButtonActiveObject button_ao;
-static void StartButtonThread() {
-  pw::thread::DetachedThread(pw::thread::freertos::Options()
-                                 .set_name("ButtonThread")
-                                 .set_priority(static_cast<UBaseType_t>(
-                                     ThreadPriority::kButtonPriority))
-                                 .set_stack_size(kButtonStackSizeWords),
-                             button_ao);
 }
 
 auto wq = pw::system::GetWorkQueue;
@@ -251,9 +226,11 @@ static void StartWorkQueueThread() {
 }
 
 static void ButtonPressed() {
-  if (button_ao.Post({AoEventButton::Type::kPress}) != true) {
-    PW_LOG_ERROR("ButtonActiveObject queue full, dropping Press event");
+  fsm_mutex_.lock();
+  if (fsm != nullptr) {
+    fsm->HandleButtonPress();
   }
+  fsm_mutex_.unlock();
 }
 
 }  // namespace
@@ -268,7 +245,27 @@ extern "C" int main(void) {
 
   StartWorkQueueThread();
   pw::system::GetWorkQueue().CheckPushWork(StartLEDThread);
-  pw::system::GetWorkQueue().CheckPushWork(StartButtonThread);
+
+  static play::thread::StateMachineContext fsm_instance{
+      [](const play::thread::State* prev_state,
+         const play::thread::State* state) {
+        if (prev_state == &play::thread::StateButtonPressed::instance()) {
+          button->StopWatchdog();
+        }
+        if (state == &play::thread::StateButtonPressed::instance()) {
+          button->StartWatchdog();
+        }
+      }};
+  fsm = &fsm_instance;
+
+  static ButtonObject button_instance{[]() {
+    fsm_mutex_.lock();
+    fsm->HandleButtonRelease();
+    fsm_mutex_.unlock();
+  }};
+  button = &button_instance;
+
+  fsm->Start();
 
   vTaskStartScheduler();
 

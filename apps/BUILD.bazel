@@ -71,6 +71,7 @@ cc_library(
     srcs = ["src/application/threads/state_machine.cc"],
     deps = [
         "@pigweed//pw_function",
+        "@pigweed//pw_log",
     ],
 )
 
@@ -105,7 +106,7 @@ pw_elf_to_bin(
 )
 
 refresh_compile_commands(
-    name = "blinky_compdb",
+    name = "app_compdb",
     targets = [
         "//apps:application.elf",
     ],

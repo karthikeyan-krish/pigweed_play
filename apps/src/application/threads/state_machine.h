@@ -52,4 +52,14 @@ class StateIdle : public State {
   void Exit(StateMachineContext& smc) override;
 };
 
+// ButtonPressed substate class
+class StateButtonPressed : public State {
+ public:
+  static StateButtonPressed& instance();
+
+  void HandleButtonRelease(StateMachineContext& smc) override;
+  void Entry(StateMachineContext& smc) override;
+  void Exit(StateMachineContext& smc) override;
+};
+
 }  // namespace play::thread

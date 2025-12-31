@@ -15,6 +15,18 @@ int StateMachineContext::Start() {
   return 0;
 }
 
+void StateMachineContext::HandleButtonPress() {
+  if (curr_state_ != nullptr) {
+    curr_state_->HandleButtonPress(*this);
+  }
+}
+
+void StateMachineContext::HandleButtonRelease() {
+  if (curr_state_ != nullptr) {
+    curr_state_->HandleButtonRelease(*this);
+  }
+}
+
 void StateMachineContext::SetState(State* new_state) {
   if (curr_state_ != nullptr) {
     curr_state_->Exit(*this);

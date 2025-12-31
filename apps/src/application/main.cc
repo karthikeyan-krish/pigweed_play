@@ -13,6 +13,7 @@
 
 #include "gpio.h"
 #include "threads/active_object.h"
+#include "threads/state_machine.h"
 
 namespace {
 using namespace std::chrono_literals;
@@ -44,6 +45,7 @@ struct AoEventLED {
   } type;
 };
 
+pw::sync::Mutex fsm_mutex_;
 
 }  // namespace
 

@@ -40,4 +40,19 @@ void StateMachineContext::SetState(State* new_state) {
 }
 
 // Abstract base state class
+void State::HandleButtonPress(StateMachineContext& smc) {
+  static_cast<void>(smc);
+  PW_LOG_DEBUG("Unhandled ButtonPress event");
+}
+
+void State::HandleButtonRelease(StateMachineContext& smc) {
+  static_cast<void>(smc);
+  PW_LOG_DEBUG("Unhandled ButtonRelease event");
+}
+
+void State::Entry(StateMachineContext& smc) { static_cast<void>(smc); }
+
+void State::Exit(StateMachineContext& smc) { static_cast<void>(smc); }
+
+// Idle substate class
 }  // namespace play::thread

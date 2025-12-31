@@ -75,4 +75,23 @@ void StateIdle::Exit(StateMachineContext& smc) {
 }
 
 // ButtonPressed substate class
+StateButtonPressed& StateButtonPressed::instance() {
+  static StateButtonPressed instance;
+  return instance;
+}
+
+void StateButtonPressed::HandleButtonRelease(StateMachineContext& smc) {
+  smc.SetState(&StateIdle::instance());
+}
+
+void StateButtonPressed::Entry(StateMachineContext& smc) {
+  smc.SetButtonPressed(true);
+  PW_LOG_INFO("Entering StateButtonPressed");
+}
+
+void StateButtonPressed::Exit(StateMachineContext& smc) {
+  static_cast<void>(smc);
+  PW_LOG_INFO("Exiting StateButtonPressed");
+}
+
 }  // namespace play::thread

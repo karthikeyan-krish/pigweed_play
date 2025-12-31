@@ -55,4 +55,24 @@ void State::Entry(StateMachineContext& smc) { static_cast<void>(smc); }
 void State::Exit(StateMachineContext& smc) { static_cast<void>(smc); }
 
 // Idle substate class
+StateIdle& StateIdle::instance() {
+  static StateIdle instance;
+  return instance;
+}
+
+void StateIdle::HandleButtonPress(StateMachineContext& smc) {
+  smc.SetState(&StateButtonPressed::instance());
+}
+
+void StateIdle::Entry(StateMachineContext& smc) {
+  smc.SetButtonPressed(false);
+  PW_LOG_INFO("Entering StateIdle");
+}
+
+void StateIdle::Exit(StateMachineContext& smc) {
+  static_cast<void>(smc);
+  PW_LOG_INFO("Exiting StateIdle");
+}
+
+// ButtonPressed substate class
 }  // namespace play::thread

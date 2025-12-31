@@ -147,35 +147,63 @@ class LEDActiveObject : public play::thread::ActiveObjectCore<AoEventLED, 8> {
   pw::chrono::SystemClock::duration morse_b_period_;
 };
 
+class ButtonObject {
  public:
-            [this](pw::chrono::SystemClock::time_point expired_deadline) {
-              bool pressed = bsp_button_status();
+  using ReleaseHandler = pw::Function<void()>;
 
+  explicit ButtonObject(ReleaseHandler on_release)
+      : on_release_(std::move(on_release)),
+        button_watchdog_timer_(
+            [this](pw::chrono::SystemClock::time_point expired_deadline) {
+              if (!watchdog_enabled_) {
+                return;
+              }
+              bool pressed = bsp_button_status();
               if (pressed && !last_state_) {
                 last_state_ = true;
                 blink_timer_.InvokeAfter(blink_period_);
               } else if (!pressed && last_state_) {
                 last_state_ = false;
+                if (on_release_)
+                  on_release_();
               }
-              button_watchdog_timer_.InvokeAt(expired_deadline +
-                                              button_watchdog_period_);
+              if (watchdog_enabled_) {
+                button_watchdog_timer_.InvokeAt(expired_deadline +
+                                                button_watchdog_period_);
+              }
             }),
         blink_timer_([this](pw::chrono::SystemClock::time_point) {
+          bsp_led_blue_toggle();
           blink_timer_.InvokeAfter(blink_period_);
         }),
         button_watchdog_period_(kButtonWatchdogPeriod),
         blink_period_(kLedBlinkPeriod),
         last_state_(false) {}
 
+  void StartWatchdog() {
+    watchdog_enabled_ = true;
+    button_watchdog_timer_.InvokeAfter(button_watchdog_period_);
+  }
+
+  void StopWatchdog() {
+    watchdog_enabled_ = false;
+    button_watchdog_timer_.Cancel();
+    blink_timer_.Cancel();
+    bsp_led_blue_off();
   }
 
  private:
+  ReleaseHandler on_release_;
   pw::chrono::SystemTimer button_watchdog_timer_;
   pw::chrono::SystemTimer blink_timer_;
   pw::chrono::SystemClock::duration button_watchdog_period_;
   pw::chrono::SystemClock::duration blink_period_;
   bool last_state_;
+  bool watchdog_enabled_ = false;
 };
+
+play::thread::StateMachineContext* fsm = nullptr;
+ButtonObject* button = nullptr;
 
 static LEDActiveObject led_ao;
 static void StartLEDThread() {

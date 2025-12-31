@@ -30,4 +30,16 @@ class StateMachineContext {
   bool button_pressed_;
 };
 
+// Abstract base state class
+class State {
+ public:
+  virtual ~State() = default;
+
+  virtual void HandleButtonPress(StateMachineContext& smc);
+  virtual void HandleButtonRelease(StateMachineContext& smc);
+
+  virtual void Entry(StateMachineContext& smc);
+  virtual void Exit(StateMachineContext& smc);
+};
+
 }  // namespace play::thread

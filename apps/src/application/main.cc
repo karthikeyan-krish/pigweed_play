@@ -26,8 +26,7 @@ static constexpr auto kMorseBData = 0xE22A3800U;
 
 enum class ThreadPriority : UBaseType_t {
   kLEDPriority = tskIDLE_PRIORITY + 1,
-  kButtonPriority = tskIDLE_PRIORITY + 2,
-  kWorkQueue = tskIDLE_PRIORITY + 3,
+  kWorkQueue = tskIDLE_PRIORITY + 2,
   kNumPriorities,
 };
 
@@ -35,7 +34,6 @@ static_assert(static_cast<UBaseType_t>(ThreadPriority::kNumPriorities) <=
               configMAX_PRIORITIES);
 
 constexpr size_t kLEDStackSizeWords = 512;
-constexpr size_t kButtonStackSizeWords = 512;
 constexpr size_t kWorkQueueThreadWords = 512;
 
 struct AoEventLED {
@@ -46,14 +44,6 @@ struct AoEventLED {
   } type;
 };
 
-struct AoEventButton {
-  enum class Type : uint8_t {
-    kInit,
-    kToggle,
-    kPress,
-    kRelease,
-  } type;
-};
 
 }  // namespace
 
@@ -155,11 +145,7 @@ class LEDActiveObject : public play::thread::ActiveObjectCore<AoEventLED, 8> {
   pw::chrono::SystemClock::duration morse_b_period_;
 };
 
-class ButtonActiveObject
-    : public play::thread::ActiveObjectCore<AoEventButton, 8> {
  public:
-  ButtonActiveObject()
-      : button_watchdog_timer_(
             [this](pw::chrono::SystemClock::time_point expired_deadline) {
               bool pressed = bsp_button_status();
 
@@ -168,48 +154,17 @@ class ButtonActiveObject
                 blink_timer_.InvokeAfter(blink_period_);
               } else if (!pressed && last_state_) {
                 last_state_ = false;
-                if (this->Post({AoEventButton::Type::kRelease}) != true) {
-                  PW_LOG_ERROR(
-                      "ButtonActiveObject queue full, dropping Release event");
-                }
-                return;
               }
               button_watchdog_timer_.InvokeAt(expired_deadline +
                                               button_watchdog_period_);
             }),
         blink_timer_([this](pw::chrono::SystemClock::time_point) {
-          if (this->Post({AoEventButton::Type::kToggle}) != true) {
-            PW_LOG_ERROR(
-                "ButtonActiveObject queue full, dropping Toggle event");
-          }
           blink_timer_.InvokeAfter(blink_period_);
         }),
         button_watchdog_period_(kButtonWatchdogPeriod),
         blink_period_(kLedBlinkPeriod),
         last_state_(false) {}
 
- protected:
-  void HandleEvent(const AoEventButton& ev) override {
-    switch (ev.type) {
-      case AoEventButton::Type::kInit:
-        bsp_led_blue_off();
-        break;
-      case AoEventButton::Type::kToggle:
-        bsp_led_blue_toggle();
-        break;
-      case AoEventButton::Type::kPress:
-        button_watchdog_timer_.InvokeAfter(button_watchdog_period_);
-        break;
-      case AoEventButton::Type::kRelease:
-        button_watchdog_timer_.Cancel();
-        blink_timer_.Cancel();
-        bsp_led_blue_off();
-        break;
-      default:
-        PW_LOG_ERROR("ButtonActiveObject received unknown event");
-        PW_ASSERT(false);
-        break;
-    }
   }
 
  private:
@@ -230,16 +185,6 @@ static void StartLEDThread() {
       led_ao);
 }
 
-static ButtonActiveObject button_ao;
-static void StartButtonThread() {
-  pw::thread::DetachedThread(pw::thread::freertos::Options()
-                                 .set_name("ButtonThread")
-                                 .set_priority(static_cast<UBaseType_t>(
-                                     ThreadPriority::kButtonPriority))
-                                 .set_stack_size(kButtonStackSizeWords),
-                             button_ao);
-}
-
 auto wq = pw::system::GetWorkQueue;
 static void StartWorkQueueThread() {
   pw::thread::DetachedThread(
@@ -251,8 +196,6 @@ static void StartWorkQueueThread() {
 }
 
 static void ButtonPressed() {
-  if (button_ao.Post({AoEventButton::Type::kPress}) != true) {
-    PW_LOG_ERROR("ButtonActiveObject queue full, dropping Press event");
   }
 }
 
@@ -268,7 +211,6 @@ extern "C" int main(void) {
 
   StartWorkQueueThread();
   pw::system::GetWorkQueue().CheckPushWork(StartLEDThread);
-  pw::system::GetWorkQueue().CheckPushWork(StartButtonThread);
 
   vTaskStartScheduler();
 

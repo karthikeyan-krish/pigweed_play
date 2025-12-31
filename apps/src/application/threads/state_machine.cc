@@ -10,4 +10,17 @@ StateMachineContext::StateMachineContext(StateChangeCb&& state_change_cb)
       state_change_cb_(std::move(state_change_cb)),
       button_pressed_(false) {}
 
+void StateMachineContext::SetState(State* new_state) {
+  if (curr_state_ != nullptr) {
+    curr_state_->Exit(*this);
+  }
+  prev_state_ = curr_state_;
+  curr_state_ = new_state;
+  if (curr_state_ != nullptr) {
+    curr_state_->Entry(*this);
+  }
+  state_change_cb_(prev_state_, curr_state_);
+}
+
+// Abstract base state class
 }  // namespace play::thread

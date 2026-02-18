@@ -13,6 +13,49 @@ exports_files([
 ])
 
 cc_binary(
+    name = "bootloader",
+    srcs = glob(
+    [
+        "include/main.h",
+        "src/bootloader/include/*.h",
+        "src/bootloader/src/*.cc",
+        "src/bootloader/src/*.c",
+        "src/bsp/*.h",
+        "src/bsp/*.c",
+    ]),
+    includes = [
+        "include",
+        "src/bootloader",
+        "src/bootloader/include",
+        "src/bsp",
+    ],
+    deps = [
+        "//targets/stm32l4xx:bootloader_linker_script",
+        ":startup",
+        "@cmsis_device//:default_cmsis_init",
+        "@stm32l4xx_hal_driver//:hal_driver",
+        "@pigweed//pw_log",
+        "@pigweed//pw_sys_io_stm32cube",
+        "@pigweed//pw_assert:backend_impl",
+        "@pigweed//pw_assert:check_backend_impl",
+        "@pigweed//pw_assert:assert_backend_impl",
+    ],
+    copts = ["-mcpu=cortex-m4", "-mthumb"],
+)
+
+stm32l4xx_cc_binary(
+    name = "bootloader.elf",
+    binary = ":bootloader",
+    platform = "//targets/stm32l4xx:bootloader_platform",
+)
+
+pw_elf_to_bin(
+    name = "bootloader_binary",
+    bin_out = "bootloader.bin",
+    elf_input = ":bootloader.elf",
+)
+
+cc_binary(
     name = "application",
     srcs = glob(
     [
@@ -99,6 +142,7 @@ cc_library(
 stm32l4xx_cc_binary(
     name = "application.elf",
     binary = ":application",
+    platform = "//targets/stm32l4xx:application_platform",
 )
 
 pw_elf_to_bin(
@@ -108,8 +152,9 @@ pw_elf_to_bin(
 )
 
 refresh_compile_commands(
-    name = "app_compdb",
+    name = "compdb",
     targets = [
         "//apps:application.elf",
+        "//apps:bootloader.elf",
     ],
 )

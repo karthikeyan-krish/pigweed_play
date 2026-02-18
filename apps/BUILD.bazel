@@ -3,6 +3,8 @@ load("@pigweed//pw_build:binary_tools.bzl", "pw_elf_to_bin")
 load("//targets:transition.bzl", "stm32l4xx_cc_binary")
 load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 load("@pigweed//pw_build:pigweed.bzl", "pw_cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 
 package(default_visibility = ["//visibility:public"])
 

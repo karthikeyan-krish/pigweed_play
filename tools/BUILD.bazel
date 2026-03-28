@@ -34,3 +34,19 @@ alias(
     actual = "@openocd//:bin/openocd",
     visibility = ["//visibility:public"],
 )
+
+cc_binary(
+    name = "bld_host",
+    srcs = ["bld_host/bld_host.c"],
+    copts = [
+        "-std=gnu11",
+        "-Wall",
+        "-Wextra",
+        "-Wno-unused-parameter",
+        "-O2",
+    ],
+    linkopts = [
+        # If you need to link with pthread (e.g. for nanosleep) add "-lpthread".
+        # "-lpthread",
+    ],
+)

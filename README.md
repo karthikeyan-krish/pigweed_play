@@ -17,9 +17,9 @@ A demo embedded project to showcase modern C++ design, FreeRTOS, and Pigweed int
 - Structured logging with **Pigweed log**
 - Hardware control through a simple **BSP (Board Support Package)**
 - Unit testing with **Google Test**
+- Finite State Machines (FSMs) for robust control logic
 
 Planned extensions:
-- Finite State Machines (FSMs) for robust control logic
 - Sensor driver libraries (accelerometer/temperature)
 - Remote communication using **gRPC**
 - Embedded Linux integration using **Yocto**
@@ -44,16 +44,51 @@ Planned extensions:
 |   |   |       └── state_machine.h
 |   |   |       └── test/
 |   |   |           └── active_object_test.cc
-│   │   └── bsp/
-│   │       ├── gpio.c
-│   │       └── gpio.h
+│   │   ├─── bsp/
+│   │   |   ├── gpio.c
+│   │   |   └── gpio.h
+│   │   └── bootloader/
+│   │       ├── include/
+│   │       |   └──bld_boot.h
+│   │       |   └──bld_config.h
+│   │       |   └──bld_crc32.h
+│   │       |   └──bld_engine.h
+│   │       |   └──bld_meta.h
+│   │       |   └──bld_protocol.h
+│   │       |   └──bld_storage_flash.h
+│   │       |   └──bld_storage.h
+│   │       |   └──bld_transport_uart_dma.h
+│   │       |   └──bld_transport.h
+│   │       |   └──stm32l4xx_it.h
+│   │       ├── src/
+│   │       |   └──bld_boot.c
+│   │       |   └──bld_crc32.c
+│   │       |   └──bld_engine.c
+│   │       |   └──bld_meta.c
+│   │       |   └──bld_storage_flash.c
+│   │       |   └──bld_transport_uart_dma.c
+│   │       |   └──main.cc
+│   │       |   └──stm32_hal_msp.c
+│   │       |   └──stm32l4xx_it.c
+│   │       └── test/
+│   │           └──bld_crc32_test.cc
+│   │           └──bld_enginetest.cc
+│   │           └──bld_meta_test.cc
+│   │           └──bld_storage_flashtest.cc
+│   │           └──bld_transport_uart_dma_test.cc
+│   │           └──test_stubs.cc
+│   │           └──test_stubs.h
 │   └── startup/
 │       └── startup_stm32l475xx.s
 ├── targets/                    # Platform-specific configuration
 │   └── stm32l4xx/
-│       └── config/
-│           ├── FreeRTOSConfig.h
-│           └── stm32l4xx_hal_conf.h
+│       ├── config/
+│       |   ├── FreeRTOSConfig.h
+│       |   └── stm32l4xx_hal_conf.h
+│       └── ldscripts/
+│           ├── stm32l475vgtx_flash_app.ld
+│           └── stm32l475vgtx_flash_bld.ld
+|           └── stm32l475vgtx_flash.ld
 ├── third_party/                # External dependencies (ignored in git)
 ├── tools/                      # Scripts to flash the program
 │   └── flash.py
@@ -122,3 +157,8 @@ bazel build //apps:application.elf --platforms=//targets/stm32l4xx:platform
 # Flash to board
 bazel run //tools:flash_application --platforms=//targets/stm32l4xx:platform
 
+# Clang format for C
+clang-format -i -style=file:apps/src/bsp/.clang-format ../../*.c ../../*.h
+
+# Clang format for C++
+clang-format -i ../../*.cc ../../*.h

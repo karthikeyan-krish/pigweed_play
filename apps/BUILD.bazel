@@ -3,12 +3,212 @@ load("@pigweed//pw_build:binary_tools.bzl", "pw_elf_to_bin")
 load("//targets:transition.bzl", "stm32l4xx_cc_binary")
 load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 load("@pigweed//pw_build:pigweed.bzl", "pw_cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 
 package(default_visibility = ["//visibility:public"])
 
 exports_files([
     "openocd_stm32l4xx.cfg",
 ])
+
+cc_binary(
+    name = "bootloader",
+    srcs = glob(
+    [
+        "include/main.h",
+        "src/bootloader/src/*.cc",
+        "src/bootloader/src/*.c",
+        "src/bsp/*.h",
+        "src/bsp/*.c",
+    ]),
+    includes = [
+        "include",
+        "src/bootloader",
+        "src/bootloader/include",
+        "src/bsp",
+    ],
+    deps = [
+        ":bootloader_core",
+        ":bootloader_transport_uart_dma",
+        ":bootloader_target",
+        ":bootloader_storage",
+        "//targets/stm32l4xx:bootloader_linker_script",
+        ":startup",
+        "@cmsis_device//:default_cmsis_init",
+        "@stm32l4xx_hal_driver//:hal_driver",
+        "@pigweed//pw_log",
+        "@pigweed//pw_sys_io_stm32cube",
+        "@pigweed//pw_assert:backend_impl",
+        "@pigweed//pw_assert:check_backend_impl",
+        "@pigweed//pw_assert:assert_backend_impl",
+    ],
+    copts = ["-mcpu=cortex-m4", "-mthumb"],
+)
+
+cc_library(
+    name = "bootloader_core",
+    srcs = [
+        "src/bootloader/src/bld_crc32.c",
+        "src/bootloader/src/bld_meta.c",
+        "src/bootloader/src/bld_engine.c",
+    ],
+    hdrs = glob([
+        "src/bootloader/include/*.h",
+    ]),
+    includes = [
+        "src/bootloader/include",
+        "src/bootloader",
+    ],
+    deps = [
+        "@pigweed//pw_log",
+    ],
+)
+
+cc_library(
+    name = "bootloader_transport_uart_dma",
+    srcs = [
+        "src/bootloader/src/bld_transport_uart_dma.c",
+    ],
+    hdrs = glob([
+        "src/bootloader/include/*.h",
+    ]),
+    includes = [
+        "src/bootloader/include",
+        "src/bootloader",
+    ],
+    deps = [
+        "@pigweed//pw_log",
+    ],
+)
+
+cc_library(
+    name = "bootloader_storage",
+    srcs = [
+        "src/bootloader/src/bld_storage_flash.c",
+    ],
+    hdrs = glob([
+        "src/bootloader/include/*.h",
+    ]),
+    includes = [
+        "src/bootloader/include",
+        "src/bootloader",
+    ],
+    deps = [
+        "@pigweed//pw_log",
+    ],
+)
+
+cc_library(
+    name = "bootloader_target",
+    srcs = [
+        "src/bootloader/src/bld_boot.c",
+        "src/bootloader/src/stm32_hal_msp.c",
+        "src/bootloader/src/stm32l4xx_it.c",
+    ],
+    hdrs = glob([
+        "include/main.h",
+        "src/bootloader/include/*.h",
+        "src/bsp/*.h",
+    ]),
+    includes = [
+        "include",
+        "src/bsp",
+        "src/bootloader/include",
+        "src/bootloader",
+    ],
+    deps = [
+        "@cmsis_device//:default_cmsis_init",
+        "@stm32l4xx_hal_driver//:hal_driver",
+    ],
+)
+
+pw_cc_test(
+    name = "bld_crc32_test",
+    srcs = [
+        "src/bootloader/test/bld_crc32_test.cc",
+    ],
+    deps = [
+        ":bootloader_core",
+        "@pigweed//pw_unit_test",
+    ],
+)
+
+cc_library(
+    name = "bootloader_test_stubs",
+    srcs = [
+        "src/bootloader/test/test_stubs.cc",
+    ],
+    hdrs = [
+        "src/bootloader/test/test_stubs.h",
+    ],
+    includes = [
+        "src/bootloader/test",
+    ],
+    deps = [
+        ":bootloader_core",
+    ],
+)
+
+pw_cc_test(
+    name = "bld_meta_test",
+    srcs = [
+        "src/bootloader/test/bld_meta_test.cc",
+    ],
+    deps = [
+        ":bootloader_core",
+        ":bootloader_test_stubs",
+        "@pigweed//pw_unit_test",
+    ],
+)
+
+pw_cc_test(
+    name = "bld_engine_test",
+    srcs = [
+        "src/bootloader/test/bld_engine_test.cc",
+    ],
+    deps = [
+        ":bootloader_core",
+        ":bootloader_test_stubs",
+        "@pigweed//pw_unit_test",
+    ],
+)
+
+pw_cc_test(
+    name = "bld_transport_uart_dma_test",
+    srcs = [
+        "src/bootloader/test/bld_transport_uart_dma_test.cc",
+    ],
+    deps = [
+        ":bootloader_transport_uart_dma",
+        ":bootloader_test_stubs",
+        "@pigweed//pw_unit_test",
+    ],
+)
+
+pw_cc_test(
+    name = "bld_storage_flash_test",
+    srcs = [
+        "src/bootloader/test/bld_storage_flash_test.cc",
+    ],
+    deps = [
+        ":bootloader_storage",
+        ":bootloader_test_stubs",
+        "@pigweed//pw_unit_test",
+    ],
+)
+
+stm32l4xx_cc_binary(
+    name = "bootloader.elf",
+    binary = ":bootloader",
+    platform = "//targets/stm32l4xx:bootloader_platform",
+)
+
+pw_elf_to_bin(
+    name = "bootloader_binary",
+    bin_out = "bootloader.bin",
+    elf_input = ":bootloader.elf",
+)
 
 cc_binary(
     name = "application",
@@ -29,7 +229,7 @@ cc_binary(
     deps = [
         ":active_object_lib",
         ":state_machine_lib",
-        "//targets/stm32l4xx:linker_script",
+        "//targets/stm32l4xx:application_linker_script",
         ":startup",
         "@cmsis_device//:default_cmsis_init", 
         "@stm32l4xx_hal_driver//:hal_driver",
@@ -97,6 +297,7 @@ cc_library(
 stm32l4xx_cc_binary(
     name = "application.elf",
     binary = ":application",
+    platform = "//targets/stm32l4xx:application_platform",
 )
 
 pw_elf_to_bin(
@@ -106,8 +307,9 @@ pw_elf_to_bin(
 )
 
 refresh_compile_commands(
-    name = "app_compdb",
+    name = "compdb",
     targets = [
         "//apps:application.elf",
+        "//apps:bootloader.elf",
     ],
 )

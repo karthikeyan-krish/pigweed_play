@@ -1,6 +1,4 @@
-#ifndef __BSP_H__
-#define __BSP_H__
-
+#pragma once
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -28,5 +26,3 @@ void bsp_send_morse_code(uint32_t bitmask);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /*__BSP_H__*/

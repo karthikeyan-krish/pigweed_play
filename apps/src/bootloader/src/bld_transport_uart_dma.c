@@ -1,12 +1,10 @@
-#include "transport_uart_dma_idle.h"
+#include "bld_transport_uart_dma.h"
 #include "bld_protocol.h"
 
 #include <string.h>
 
-#include <pw_log/log.h>
-
 #define BLD_TRANSPORT_OK 0
-#define BLD_TRANSPORT_ERR -1
+#define BLD_TRANSPORT_ERR (-1)
 
 #define BLD_UART_TX_TIMEOUT_MS 2000u
 
@@ -102,35 +100,24 @@ static void ring_drop(struct bld_uart_dma_ctx *ctx, uint32_t len)
 	ctx->r += len;
 }
 
-/*
- * Starts UART receive-to-idle DMA reception.
- *
- * Half-transfer interrupts are disabled because this transport consumes data
- * only on idle or full-receive events.
- */
 void bld_uart_dma_start(struct bld_uart_dma_ctx *ctx)
 {
-	if (ctx == NULL || ctx->huart == NULL) {
+	if (ctx == NULL || ctx->uart == NULL || ctx->ops == NULL ||
+	    ctx->ops->rx_start == NULL) {
 		return;
 	}
 
-	(void)HAL_UARTEx_ReceiveToIdle_DMA(ctx->huart, ctx->dma_rx,
-					   BLD_UART_DMA_RX_CHUNK);
+	(void)ctx->ops->rx_start(ctx->uart, ctx->dma_rx, BLD_UART_DMA_RX_CHUNK);
 
-	if (ctx->huart->hdmarx != NULL) {
-		__HAL_DMA_DISABLE_IT(ctx->huart->hdmarx, DMA_IT_HT);
+	if (ctx->dma_rx_handle != NULL && ctx->ops->disable_dma_it != NULL) {
+		ctx->ops->disable_dma_it(ctx->dma_rx_handle);
 	}
 }
 
-/*
- * Handles a DMA receive event.
- *
- * Received bytes are copied from the DMA buffer into the software ring buffer,
- * then receive-to-idle DMA is restarted for the next chunk.
- */
 void bld_uart_dma_on_rx_event(struct bld_uart_dma_ctx *ctx, uint16_t size)
 {
-	if (ctx == NULL || ctx->huart == NULL) {
+	if (ctx == NULL || ctx->uart == NULL || ctx->ops == NULL ||
+	    ctx->ops->rx_start == NULL) {
 		return;
 	}
 
@@ -142,46 +129,51 @@ void bld_uart_dma_on_rx_event(struct bld_uart_dma_ctx *ctx, uint16_t size)
 		(void)ring_push(ctx, ctx->dma_rx, size);
 	}
 
-	(void)HAL_UARTEx_ReceiveToIdle_DMA(ctx->huart, ctx->dma_rx,
-					   BLD_UART_DMA_RX_CHUNK);
-	if (ctx->huart->hdmarx != NULL) {
-		__HAL_DMA_DISABLE_IT(ctx->huart->hdmarx, DMA_IT_HT);
+	(void)ctx->ops->rx_start(ctx->uart, ctx->dma_rx, BLD_UART_DMA_RX_CHUNK);
+
+	if (ctx->dma_rx_handle != NULL && ctx->ops->disable_dma_it != NULL) {
+		ctx->ops->disable_dma_it(ctx->dma_rx_handle);
 	}
 }
 
-/*
- * Handles a UART or DMA error and restarts reception.
- */
 void bld_uart_dma_on_error(struct bld_uart_dma_ctx *ctx)
 {
-	if (ctx == NULL || ctx->huart == NULL) {
+	if (ctx == NULL || ctx->uart == NULL || ctx->ops == NULL ||
+	    ctx->ops->rx_start == NULL) {
 		return;
 	}
 
-	(void)HAL_UARTEx_ReceiveToIdle_DMA(ctx->huart, ctx->dma_rx,
-					   BLD_UART_DMA_RX_CHUNK);
-	if (ctx->huart->hdmarx != NULL) {
-		__HAL_DMA_DISABLE_IT(ctx->huart->hdmarx, DMA_IT_HT);
+	(void)ctx->ops->rx_start(ctx->uart, ctx->dma_rx, BLD_UART_DMA_RX_CHUNK);
+
+	if (ctx->dma_rx_handle != NULL && ctx->ops->disable_dma_it != NULL) {
+		ctx->ops->disable_dma_it(ctx->dma_rx_handle);
 	}
 }
 
 static uint32_t uart_dma_now_ms(void *ctx)
 {
-	(void)ctx;
-	return HAL_GetTick();
+	struct bld_uart_dma_ctx *uart_ctx = (struct bld_uart_dma_ctx *)ctx;
+
+	if (uart_ctx == NULL || uart_ctx->ops == NULL ||
+	    uart_ctx->ops->now_ms == NULL) {
+		return 0u;
+	}
+
+	return uart_ctx->ops->now_ms(uart_ctx->time_ctx);
 }
 
 static int uart_dma_send_bytes(uint8_t *buf, uint16_t len, void *ctx)
 {
 	struct bld_uart_dma_ctx *uart_ctx = (struct bld_uart_dma_ctx *)ctx;
 
-	if (uart_ctx == NULL || uart_ctx->huart == NULL || buf == NULL ||
-	    len == 0u) {
+	if (uart_ctx == NULL || uart_ctx->uart == NULL ||
+	    uart_ctx->ops == NULL || uart_ctx->ops->tx_blocking == NULL ||
+	    buf == NULL || len == 0u) {
 		return BLD_TRANSPORT_ERR;
 	}
 
-	return (HAL_UART_Transmit(uart_ctx->huart, buf, len,
-				  BLD_UART_TX_TIMEOUT_MS) == HAL_OK) ?
+	return (uart_ctx->ops->tx_blocking(uart_ctx->uart, buf, len,
+					   BLD_UART_TX_TIMEOUT_MS) == 0) ?
 		       BLD_TRANSPORT_OK :
 		       BLD_TRANSPORT_ERR;
 }
@@ -194,6 +186,11 @@ static int uart_dma_send_bytes(uint8_t *buf, uint16_t len, void *ctx)
  *
  * LEN is the payload length in bytes. CRC validation is deferred to the
  * bootloader engine; this parser validates only framing and buffer bounds.
+ *
+ * Returns -
+ *   > 0 : complete frame length in bytes
+ *   = 0 : no frame available / timeout
+ *   < 0 : transport/parser error
  */
 static int uart_dma_parse_frame(uint8_t *out, uint16_t max_len,
 				uint32_t timeout_ms, void *ctx)
@@ -202,12 +199,14 @@ static int uart_dma_parse_frame(uint8_t *out, uint16_t max_len,
 	uint32_t start_ms;
 
 	if (uart_ctx == NULL || out == NULL ||
-	    max_len < BLD_FRAME_FIXED_OVERHEAD) {
-		return BLD_TRANSPORT_ERR;
+	    max_len < BLD_FRAME_FIXED_OVERHEAD || uart_ctx->ops == NULL ||
+	    uart_ctx->ops->now_ms == NULL) {
+		return -1;
 	}
 
-	start_ms = HAL_GetTick();
-	while ((HAL_GetTick() - start_ms) <= timeout_ms) {
+	start_ms = uart_ctx->ops->now_ms(uart_ctx->time_ctx);
+	while ((uart_ctx->ops->now_ms(uart_ctx->time_ctx) - start_ms) <=
+	       timeout_ms) {
 		uint8_t sof;
 		uint8_t len_lo;
 		uint8_t len_hi;
@@ -258,12 +257,12 @@ static int uart_dma_parse_frame(uint8_t *out, uint16_t max_len,
 		}
 
 		if (ring_read(uart_ctx, out, total_len) != BLD_TRANSPORT_OK) {
-			return BLD_TRANSPORT_ERR;
+			return -1;
 		}
 		return (uint16_t)total_len;
 	}
-
-	return BLD_TRANSPORT_OK;
+	/* Timeout or no frame */
+	return 0;
 }
 
 struct bld_transport bld_transport_uart_dma_make(struct bld_uart_dma_ctx *ctx)

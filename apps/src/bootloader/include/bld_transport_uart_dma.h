@@ -1,6 +1,5 @@
 #pragma once
 #include "bld_transport.h"
-#include "stm32l4xx_hal.h"
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -21,6 +20,14 @@ extern "C" {
 #define BLD_UART_RING_SIZE 4096u
 #endif
 
+struct bld_uart_dma_ll_ops {
+	int (*rx_start)(void *uart, uint8_t *buf, uint16_t len);
+	int (*tx_blocking)(void *uart, uint8_t *buf, uint16_t len,
+			   uint32_t timeout_ms);
+	void (*disable_dma_it)(void *dma_rx);
+	uint32_t (*now_ms)(void *time_ctx);
+};
+
 /*
  * UART DMA transport context.
  *
@@ -29,7 +36,10 @@ extern "C" {
  * frame parser.
  */
 struct bld_uart_dma_ctx {
-	UART_HandleTypeDef *huart;
+	void *uart;
+	void *dma_rx_handle;
+	void *time_ctx;
+	const struct bld_uart_dma_ll_ops *ops;
 	uint8_t dma_rx[BLD_UART_DMA_RX_CHUNK];
 	uint8_t ring[BLD_UART_RING_SIZE];
 	volatile uint32_t w;

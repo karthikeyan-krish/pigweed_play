@@ -22,7 +22,7 @@
 #include "stm32l4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "transport_uart_dma_idle.h"
+#include "bld_transport_uart_dma.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -232,14 +232,14 @@ void UART4_IRQHandler(void)
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
-	if (huart == g_bld_uart_ctx.huart) {
+	if (huart == (UART_HandleTypeDef *)g_bld_uart_ctx.uart) {
 		bld_uart_dma_on_rx_event(&g_bld_uart_ctx, Size);
 	}
 }
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
-	if (huart == g_bld_uart_ctx.huart) {
+	if (huart == (UART_HandleTypeDef *)g_bld_uart_ctx.uart) {
 		bld_uart_dma_on_error(&g_bld_uart_ctx);
 	}
 }

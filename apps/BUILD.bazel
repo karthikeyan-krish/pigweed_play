@@ -17,7 +17,6 @@ cc_binary(
     srcs = glob(
     [
         "include/main.h",
-        "src/bootloader/include/*.h",
         "src/bootloader/src/*.cc",
         "src/bootloader/src/*.c",
         "src/bsp/*.h",
@@ -30,6 +29,10 @@ cc_binary(
         "src/bsp",
     ],
     deps = [
+        ":bootloader_core",
+        ":bootloader_transport_uart_dma",
+        ":bootloader_target",
+        ":bootloader_storage",
         "//targets/stm32l4xx:bootloader_linker_script",
         ":startup",
         "@cmsis_device//:default_cmsis_init",
@@ -41,6 +44,158 @@ cc_binary(
         "@pigweed//pw_assert:assert_backend_impl",
     ],
     copts = ["-mcpu=cortex-m4", "-mthumb"],
+)
+
+cc_library(
+    name = "bootloader_core",
+    srcs = [
+        "src/bootloader/src/bld_crc32.c",
+        "src/bootloader/src/bld_meta.c",
+        "src/bootloader/src/bld_engine.c",
+    ],
+    hdrs = glob([
+        "src/bootloader/include/*.h",
+    ]),
+    includes = [
+        "src/bootloader/include",
+        "src/bootloader",
+    ],
+    deps = [
+        "@pigweed//pw_log",
+    ],
+)
+
+cc_library(
+    name = "bootloader_transport_uart_dma",
+    srcs = [
+        "src/bootloader/src/bld_transport_uart_dma.c",
+    ],
+    hdrs = glob([
+        "src/bootloader/include/*.h",
+    ]),
+    includes = [
+        "src/bootloader/include",
+        "src/bootloader",
+    ],
+    deps = [
+        "@pigweed//pw_log",
+    ],
+)
+
+cc_library(
+    name = "bootloader_storage",
+    srcs = [
+        "src/bootloader/src/bld_storage_flash.c",
+    ],
+    hdrs = glob([
+        "src/bootloader/include/*.h",
+    ]),
+    includes = [
+        "src/bootloader/include",
+        "src/bootloader",
+    ],
+    deps = [
+        "@pigweed//pw_log",
+    ],
+)
+
+cc_library(
+    name = "bootloader_target",
+    srcs = [
+        "src/bootloader/src/bld_boot.c",
+        "src/bootloader/src/stm32_hal_msp.c",
+        "src/bootloader/src/stm32l4xx_it.c",
+    ],
+    hdrs = glob([
+        "include/main.h",
+        "src/bootloader/include/*.h",
+        "src/bsp/*.h",
+    ]),
+    includes = [
+        "include",
+        "src/bsp",
+        "src/bootloader/include",
+        "src/bootloader",
+    ],
+    deps = [
+        "@cmsis_device//:default_cmsis_init",
+        "@stm32l4xx_hal_driver//:hal_driver",
+    ],
+)
+
+pw_cc_test(
+    name = "bld_crc32_test",
+    srcs = [
+        "src/bootloader/test/bld_crc32_test.cc",
+    ],
+    deps = [
+        ":bootloader_core",
+        "@pigweed//pw_unit_test",
+    ],
+)
+
+cc_library(
+    name = "bootloader_test_stubs",
+    srcs = [
+        "src/bootloader/test/test_stubs.cc",
+    ],
+    hdrs = [
+        "src/bootloader/test/test_stubs.h",
+    ],
+    includes = [
+        "src/bootloader/test",
+    ],
+    deps = [
+        ":bootloader_core",
+    ],
+)
+
+pw_cc_test(
+    name = "bld_meta_test",
+    srcs = [
+        "src/bootloader/test/bld_meta_test.cc",
+    ],
+    deps = [
+        ":bootloader_core",
+        ":bootloader_test_stubs",
+        "@pigweed//pw_unit_test",
+    ],
+)
+
+pw_cc_test(
+    name = "bld_engine_test",
+    srcs = [
+        "src/bootloader/test/bld_engine_test.cc",
+    ],
+    deps = [
+        ":bootloader_core",
+        ":bootloader_test_stubs",
+        "@pigweed//pw_unit_test",
+    ],
+)
+
+pw_cc_test(
+    name = "bld_transport_uart_dma_test",
+    srcs = [
+        "src/bootloader/test/bld_transport_uart_dma_test.cc",
+    ],
+    deps = [
+        ":bootloader_transport_uart_dma",
+        ":bootloader_test_stubs",
+        "@pigweed//pw_unit_test",
+    ],
+)
+
+pw_cc_test(
+    name = "bld_storage_flash_test",
+    srcs = [
+        "src/bootloader/test/bld_storage_flash_test.cc",
+    ],
+    deps = [
+        ":bootloader_storage",
+        ":bootloader_test_stubs",
+        "@pigweed//pw_unit_test",
+    ],
 )
 
 stm32l4xx_cc_binary(

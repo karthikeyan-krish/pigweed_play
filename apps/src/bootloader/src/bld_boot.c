@@ -26,7 +26,7 @@ void bld_jump_to_image(uint32_t image_base)
 		NVIC->ICPR[i] = 0xFFFFFFFFu;
 	}
 
-	/* Delocate vector table to app */
+	/* Relocate vector table to app */
 	SCB->VTOR = image_base;
 	__DSB();
 	__ISB();

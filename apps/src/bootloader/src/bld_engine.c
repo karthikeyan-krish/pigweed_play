@@ -8,7 +8,7 @@
 #include <string.h>
 
 #define BLD_ENGINE_OK 0
-#define BLD_ENGINE_ERR -1
+#define BLD_ENGINE_ERR (-1)
 
 #define BLD_DATA_PREFIX_PAYLOAD_SIZE 6u
 #define BLD_CRC32_FIELD_SIZE 4u
@@ -419,6 +419,9 @@ int bld_engine_init(struct bld_engine *engine,
 	engine->slot_storage = *slot_storage;
 	engine->meta_storage = *meta_storage;
 
+	/* Invalid or empty metadata is not fatal during init.
+   * Refresh falls back to EMPTY when metadata cannot be read.
+   */
 	(void)bld_engine_refresh_image_info(engine);
 	return BLD_ENGINE_OK;
 }
@@ -434,27 +437,37 @@ int bld_engine_boot_decide_and_jump(struct bld_engine *engine)
 	}
 
 	if (engine->image_info.state != BLD_IMAGE_STATE_READY) {
+		(void)bld_engine_send_status(
+			engine, BLD_ST_BOOT_ERR,
+			(uint32_t)engine->image_info.state);
 		return BLD_ENGINE_ERR;
 	}
 
 	if (bld_engine_verify_slot_image(engine, engine->image_info.size,
 					 engine->image_info.crc32) != 0) {
+		engine->image_info.state = BLD_IMAGE_STATE_CORRUPTED;
+
 		(void)bld_meta_set_state(&engine->meta_storage,
 					 BLD_IMAGE_STATE_CORRUPTED);
-		engine->image_info.state = BLD_IMAGE_STATE_CORRUPTED;
+
+		(void)bld_engine_send_status(
+			engine, BLD_ST_BOOT_ERR,
+			(uint32_t)engine->image_info.state);
 		return BLD_ENGINE_ERR;
 	}
 
 	(void)bld_engine_send_status(engine, BLD_ST_OK, 0u);
 
 	bld_jump_to_image(BLD_SLOT_BASE);
+
+	/* Unreachable in production, useful for tests/static analysis */
 	return BLD_ENGINE_OK;
 }
 
 void bld_engine_poll(struct bld_engine *engine, uint32_t frame_timeout_ms)
 {
 	uint8_t frame_buf[BLD_MAX_FRAME_SIZE];
-	uint16_t frame_len;
+	int frame_len;
 	uint8_t frame_type;
 
 	if (engine == NULL || engine->transport.parse == NULL) {
@@ -466,6 +479,12 @@ void bld_engine_poll(struct bld_engine *engine, uint32_t frame_timeout_ms)
 					    frame_timeout_ms,
 					    engine->transport.ctx);
 
+	/* Parse error */
+	if (frame_len < 0) {
+		return;
+	}
+
+	/* Timeout/no frame */
 	if (frame_len == 0u) {
 		return;
 	}

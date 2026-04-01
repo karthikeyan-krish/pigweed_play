@@ -1,10 +1,13 @@
 #include "bld_meta.h"
 #include "bld_crc32.h"
+#include "bld_storage.h"
 
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #define BLD_META_OK 0
-#define BLD_META_ERR -1
+#define BLD_META_ERR (-1)
 
 struct __attribute__((packed)) bld_meta_record {
 	uint32_t magic;
@@ -36,19 +39,19 @@ static void bld_meta_record_init_default(struct bld_meta_record *record)
 
 static int bld_meta_storage_valid(const struct bld_storage *meta_storage)
 {
-	if (meta_storage == 0) {
+	if (meta_storage == NULL) {
 		return BLD_META_ERR;
 	}
-	if (meta_storage->ctx == 0) {
+	if (meta_storage->ctx == NULL) {
 		return BLD_META_ERR;
 	}
-	if (meta_storage->read == 0) {
+	if (meta_storage->read == NULL) {
 		return BLD_META_ERR;
 	}
-	if (meta_storage->write == 0) {
+	if (meta_storage->write == NULL) {
 		return BLD_META_ERR;
 	}
-	if (meta_storage->erase == 0) {
+	if (meta_storage->erase == NULL) {
 		return BLD_META_ERR;
 	}
 	return BLD_META_OK;
@@ -56,14 +59,15 @@ static int bld_meta_storage_valid(const struct bld_storage *meta_storage)
 
 static int bld_meta_record_validate(const struct bld_meta_record *record)
 {
-	if (record == 0) {
+	if (record == NULL) {
 		return BLD_META_ERR;
 	}
 	if (record->magic != BLD_META_MAGIC) {
 		return BLD_META_ERR;
 	}
 	if (record->state != (uint8_t)BLD_IMAGE_STATE_EMPTY &&
-	    record->state != (uint8_t)BLD_IMAGE_STATE_READY) {
+	    record->state != (uint8_t)BLD_IMAGE_STATE_READY &&
+	    record->state != (uint8_t)BLD_IMAGE_STATE_CORRUPTED) {
 		return BLD_META_ERR;
 	}
 	if (record->record_crc32 != bld_meta_crc32(record)) {
@@ -89,7 +93,7 @@ static int bld_meta_record_write(const struct bld_storage *meta_storage,
 	struct bld_meta_record tmp;
 
 	if (bld_meta_storage_valid(meta_storage) != BLD_META_OK ||
-	    record == 0) {
+	    record == NULL) {
 		return BLD_META_ERR;
 	}
 
@@ -125,7 +129,8 @@ int bld_meta_read_info(const struct bld_storage *meta_storage,
 {
 	struct bld_meta_record record;
 
-	if (bld_meta_storage_valid(meta_storage) != BLD_META_OK || out == 0) {
+	if (bld_meta_storage_valid(meta_storage) != BLD_META_OK ||
+	    out == NULL) {
 		return BLD_META_ERR;
 	}
 
@@ -172,7 +177,8 @@ int bld_meta_set_state(const struct bld_storage *meta_storage,
 		return BLD_META_ERR;
 	}
 
-	if (state != BLD_IMAGE_STATE_EMPTY && state != BLD_IMAGE_STATE_READY) {
+	if (state != BLD_IMAGE_STATE_EMPTY && state != BLD_IMAGE_STATE_READY &&
+	    state != BLD_IMAGE_STATE_CORRUPTED) {
 		return BLD_META_ERR;
 	}
 

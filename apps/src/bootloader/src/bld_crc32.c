@@ -1,5 +1,8 @@
 #include "bld_crc32.h"
 
+#include <stdint.h>
+#include <stddef.h>
+
 #define CRC32_REFLECTED_POLY 0xEDB88320u
 
 static const uint32_t crc32_lsb_mask = 1u;

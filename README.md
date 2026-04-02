@@ -18,18 +18,20 @@ A demo embedded project to showcase modern C++ design, FreeRTOS, and Pigweed int
 - Hardware control through a simple **BSP (Board Support Package)**
 - Unit testing with **Google Test**
 - Finite State Machines (FSMs) for robust control logic
+- GitHub Actions CI workflow for Bazel
 
 Planned extensions:
 - Sensor driver libraries (accelerometer/temperature)
 - Remote communication using **gRPC**
 - Embedded Linux integration using **Yocto**
-- GitHub Actions CI workflow for Bazel
 
 ---
 
 ## 📂 Project Structure
 ```
 📂 pigweed_play/
+├── .github/workflows/  
+|    └── ci.yml
 ├── apps/                       # Application code (Active Objects, state machines)
 │   ├── include/
 │   │   └── main.h
@@ -108,13 +110,13 @@ Planned extensions:
 - ✅ Structured **logging** with Pigweed log
 - ✅ Integrate **Google Test** for unit testing AO
 - ✅ Add **state machine framework** for AO event handling
+- ✅ Integrate **GitHub Actions CI** workflow for Bazel
 
 ---
 
 ## 🛠️ Planned Work
 - [ ] Add **gRPC service** for remote communication (host ↔ device)
-- [ ] Explore **Yocto recipes** to integrate with embedded Linux
-- [ ] Integrate **GitHub Actions CI** workflow for Bazel
+- [ ] Explore **Yocto recipes** to integrate with embedded Linux 
 - [ ] Write a **sensor library** (e.g., I²C or SPI driver demo)
 
 ---

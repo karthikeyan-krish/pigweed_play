@@ -157,17 +157,33 @@ struct __attribute__((packed)) bld_status_frame {
 /*
  * Metadata frame
  *
- * Transfers persistent image metadata such as version, size,
- * corruption state, and remaining boot attempts.
+ * Transfers full boot-control metadata for A/B slot management.
+ *
+ * This allows the host to inspect both slots and decide which image/linker
+ * layout should be transmitted.
  */
+struct __attribute__((packed)) bld_meta_slot_wire {
+	uint32_t version;
+	uint32_t size;
+	uint32_t crc32;
+	uint8_t state;
+	uint8_t boot_attempts_left;
+	uint16_t reserved;
+};
+
 struct __attribute__((packed)) bld_meta_frame {
 	uint8_t sof;
 	uint8_t type;
 	uint16_t len;
-	uint32_t image_version;
-	uint32_t image_size;
-	uint32_t image_crc32;
-	uint8_t state;
+
+	uint8_t active_slot;
+	uint8_t confirmed_slot;
+	uint8_t pending_slot;
+	uint8_t reserved0;
+
+	struct bld_meta_slot_wire slot_a;
+	struct bld_meta_slot_wire slot_b;
+
 	uint32_t crc32;
 	uint8_t eof;
 };

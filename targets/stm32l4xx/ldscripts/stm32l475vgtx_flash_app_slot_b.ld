@@ -63,11 +63,8 @@ MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 96K
 RAM2 (xrw)      : ORIGIN = 0x10000000, LENGTH = 32K
-FLASH_BOOT (rx)      : ORIGIN = 0x8000000, LENGTH = 128K
 FLASH_META (rx)      : ORIGIN = 0x8020000, LENGTH = 8K
-SLOT_A (rx)      : ORIGIN = 0x8022000, LENGTH = 376K
-SLOT_B (rx)      : ORIGIN = 0x8080000, LENGTH = 376K
-RESERVE (rx)      : ORIGIN = 0x80DE000, LENGTH = 136K
+FLASH (rx)      : ORIGIN = 0x8080000, LENGTH = 376K
 }
 
 /* Define output sections */
@@ -79,7 +76,7 @@ SECTIONS
     . = ALIGN(8);
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(8);
-  } >FLASH_BOOT
+  } >FLASH
 
   /* The program code and other data goes into FLASH */
   .text :
@@ -96,7 +93,7 @@ SECTIONS
 
     . = ALIGN(8);
     _etext = .;        /* define a global symbols at end of code */
-  } >FLASH_BOOT
+  } >FLASH
 
   /* Constant data goes into FLASH */
   .rodata :
@@ -105,21 +102,21 @@ SECTIONS
     *(.rodata)         /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
     . = ALIGN(8);
-  } >FLASH_BOOT
+  } >FLASH
 
   .ARM.extab   : 
   { 
   . = ALIGN(8);
   *(.ARM.extab* .gnu.linkonce.armextab.*)
   . = ALIGN(8);
-  } >FLASH_BOOT
+  } >FLASH
   .ARM : {
 	. = ALIGN(8);
     __exidx_start = .;
     *(.ARM.exidx*)
     __exidx_end = .;
 	. = ALIGN(8);
-  } >FLASH_BOOT
+  } >FLASH
 
   .preinit_array     :
   {
@@ -128,7 +125,7 @@ SECTIONS
     KEEP (*(.preinit_array*))
     PROVIDE_HIDDEN (__preinit_array_end = .);
 	. = ALIGN(8);
-  } >FLASH_BOOT
+  } >FLASH
   
   .init_array :
   {
@@ -138,7 +135,7 @@ SECTIONS
     KEEP (*(.init_array*))
     PROVIDE_HIDDEN (__init_array_end = .);
 	. = ALIGN(8);
-  } >FLASH_BOOT
+  } >FLASH
   .fini_array :
   {
 	. = ALIGN(8);
@@ -147,7 +144,7 @@ SECTIONS
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
 	. = ALIGN(8);
-  } >FLASH_BOOT
+  } >FLASH
 
   /* used by the startup to initialize data */
   _sidata = LOADADDR(.data);
@@ -162,7 +159,7 @@ SECTIONS
 
     . = ALIGN(8);
     _edata = .;        /* define a global symbol at data end */
-  } >RAM AT> FLASH_BOOT
+  } >RAM AT> FLASH
 
   
   /* Uninitialized data section */

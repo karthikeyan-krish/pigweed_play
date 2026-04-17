@@ -87,8 +87,13 @@ pw_linker_script(
 )
 
 pw_linker_script(
-    name = "application_linker_script",
-    linker_script = "ldscripts/stm32l475vgtx_flash_app.ld",
+    name = "application_linker_script_a",
+    linker_script = "ldscripts/stm32l475vgtx_flash_app_slot_a.ld",
+)
+
+pw_linker_script(
+    name = "application_linker_script_b",
+    linker_script = "ldscripts/stm32l475vgtx_flash_app_slot_b.ld",
 )
 
 cc_library(

@@ -1,12 +1,13 @@
-#include "pw_unit_test/framework.h"
-#include "pw_async2/dispatcher.h"
-#include "pw_async2/simulated_time_provider.h"
-#include "pw_chrono/system_clock.h"
-#include "pw_allocator/testing.h"
-#include "apps/src/application/threads/active_object.h"
+#include "active_object.h"
 
 #include <deque>
 #include <mutex>
+
+#include "pw_allocator/testing.h"
+#include "pw_async2/dispatcher.h"
+#include "pw_async2/simulated_time_provider.h"
+#include "pw_chrono/system_clock.h"
+#include "pw_unit_test/framework.h"
 
 namespace play::thread {
 namespace {
@@ -57,7 +58,8 @@ class TestActiveObject : public ActiveObjectCore<TestEvent, 4> {
     TestEvent ev;
     {
       std::lock_guard<pw::sync::Mutex> lock(queue_mutex_for_test_);
-      if (queue_for_test_.empty()) return;
+      if (queue_for_test_.empty())
+        return;
       ev = queue_for_test_.front();
       queue_for_test_.pop_front();
     }

@@ -19,11 +19,7 @@ A demo embedded project to showcase modern C++ design, FreeRTOS, and Pigweed int
 - Unit testing with **Google Test**
 - Finite State Machines (FSMs) for robust control logic
 - GitHub Actions CI workflow for Bazel
-
-Planned extensions:
-- Sensor driver libraries (accelerometer/temperature)
-- Remote communication using **gRPC**
-- Embedded Linux integration using **Yocto**
+- **Dual-slot bootloader with rollback support**
 
 ---
 
@@ -40,12 +36,16 @@ Planned extensions:
 │   │   │   ├── main.cc
 │   │   │   ├── stm32l4xx_it.c
 │   │   │   ├── stm32l4xx_it.h
+│   │   │   ├── bootloader_confirm/
+│   │   │   |   └── bld_confirm.h
+│   │   │   |   └── bld_confirm.c
 │   │   │   └── threads/
 │   │   │       └── active_object.h
 |   |   |       └── state_machine.cc
 |   |   |       └── state_machine.h
 |   |   |       └── test/
 |   |   |           └── active_object_test.cc
+|   |   |           └── state_machine_test.cc
 │   │   ├─── bsp/
 │   │   |   ├── gpio.c
 │   │   |   └── gpio.h
@@ -111,13 +111,7 @@ Planned extensions:
 - ✅ Integrate **Google Test** for unit testing AO
 - ✅ Add **state machine framework** for AO event handling
 - ✅ Integrate **GitHub Actions CI** workflow for Bazel
-
----
-
-## 🛠️ Planned Work
-- [ ] Add **gRPC service** for remote communication (host ↔ device)
-- [ ] Explore **Yocto recipes** to integrate with embedded Linux 
-- [ ] Write a **sensor library** (e.g., I²C or SPI driver demo)
+- ✅ Implemented **Bootloader with A/B slot + rollback**
 
 ---
 
@@ -144,6 +138,32 @@ Planned extensions:
 - **pw_sync** → Mutex, ThreadNotification for event delivery
 - **pw_containers** → InlineQueue for AO event queues
 - **pw_chrono** → Timer for periodic tasks
+
+### 🟠 Bootloader (A/B + Rollback)
+- Dual-slot firmware update mechanism (**Slot A / Slot B**)
+- Updates written to inactive slot to ensure safety
+- Metadata-driven boot control:
+  - `active`, `confirmed`, `pending` slots
+  - image version, size, CRC32
+  - boot attempts tracking
+- Automatic rollback:
+  - Invalid image or failed boots → slot marked **BAD**
+  - Fallback to last **confirmed** slot
+- Clean separation of layers:
+  - protocol, engine (state machine), storage, transport
+
+### 🧪 Testing Strategy
+- Unit tests using **Google Test**
+- Hardware-independent testing via **fake storage and transport**
+- Coverage includes:
+  - bootloader engine (state machine + protocol flow)
+  - metadata handling and rollback logic
+  - transport layer parsing
+  - CRC validation
+- Focus on:
+  - edge cases
+  - failure paths (CRC errors, invalid states)
+  - deterministic behavior
 
 ---
 

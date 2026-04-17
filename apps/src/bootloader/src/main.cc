@@ -189,7 +189,8 @@ extern "C" int main(void) {
   bld_uart_dma_start(&g_bld_uart_ctx);
   struct bld_transport transport = bld_transport_uart_dma_make(&g_bld_uart_ctx);
 
-  struct bld_storage slot_storage;
+  struct bld_storage slot_a_storage;
+  struct bld_storage slot_b_storage;
   struct bld_storage meta_storage;
 
   static const struct bld_flash_ops g_flash_ops = {
@@ -200,9 +201,22 @@ extern "C" int main(void) {
       .program_doubleword = stm32_flash_program_doubleword,
   };
 
-  const struct bld_storage_flash_ctx slot_ctx = {
-      .region_base = BLD_SLOT_BASE,
-      .region_size = BLD_SLOT_SIZE,
+  const struct bld_storage_flash_ctx slot_a_ctx = {
+      .region_base = BLD_SLOT_A_BASE,
+      .region_size = BLD_SLOT_A_SIZE,
+      .page_size = 2048u,
+      .flash_base = FLASH_BASE,
+      .flash_bank_size = FLASH_BANK_SIZE,
+      .flash_page_size = FLASH_PAGE_SIZE,
+      .flash_bank1 = FLASH_BANK_1,
+      .flash_bank2 = FLASH_BANK_2,
+      .ops = &g_flash_ops,
+      .hw = NULL,
+  };
+
+  const struct bld_storage_flash_ctx slot_b_ctx = {
+      .region_base = BLD_SLOT_B_BASE,
+      .region_size = BLD_SLOT_B_SIZE,
       .page_size = 2048u,
       .flash_base = FLASH_BASE,
       .flash_bank_size = FLASH_BANK_SIZE,
@@ -226,11 +240,13 @@ extern "C" int main(void) {
       .hw = NULL,
   };
 
-  (void)bld_storage_flash_init(&slot_storage, &slot_ctx);
+  (void)bld_storage_flash_init(&slot_a_storage, &slot_a_ctx);
+  (void)bld_storage_flash_init(&slot_b_storage, &slot_b_ctx);
   (void)bld_storage_flash_init(&meta_storage, &meta_ctx);
 
   struct bld_engine engine;
-  bld_engine_init(&engine, &transport, &slot_storage, &meta_storage);
+  bld_engine_init(
+      &engine, &transport, &slot_a_storage, &slot_b_storage, &meta_storage);
 
   /*
    * Boot application unless the user explicitly requests bootloader mode.

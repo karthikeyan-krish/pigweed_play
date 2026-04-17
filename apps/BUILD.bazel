@@ -343,7 +343,16 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "bootloader_confirm_lib",
+    hdrs = glob(["src/application/bootloader_confirm/bld_confirm.h",]),
+    srcs = ["src/application/bootloader_confirm/bld_confirm.c"],
+    includes = ["src/application/bootloader_confirm"],
     deps = [
+        ":bootloader_core",
+        ":bootloader_storage",
+        "@pigweed//pw_log",
+        "@stm32l4xx_hal_driver//:hal_driver",
     ],
 )
 
@@ -396,6 +405,15 @@ pw_cc_test(
         "@pigweed//pw_async2:dispatcher",
         "@pigweed//pw_async2:simulated_time_provider",
         "@pigweed//pw_chrono:system_clock",
+        "@pigweed//pw_unit_test",
+    ],
+)
+
+pw_cc_test(
+    name = "state_machine_test",
+    srcs = ["src/application/threads/test/state_machine_test.cc"],
+    deps = [
+        ":state_machine_lib",
         "@pigweed//pw_unit_test",
     ],
 )

@@ -11,9 +11,13 @@
 #include <pw_thread/sleep.h>
 #include <task.h>
 
+#include "active_object.h"
 #include "gpio.h"
-#include "threads/active_object.h"
-#include "threads/state_machine.h"
+#include "state_machine.h"
+
+#if defined(BLD_APP_SLOT_BUILD)
+#include "bld_confirm.h"
+#endif
 
 namespace {
 using namespace std::chrono_literals;
@@ -242,6 +246,12 @@ extern "C" int main(void) {
   pw_sys_io_Init();
 
   bsp_init();
+
+#if defined(BLD_APP_SLOT_BUILD)
+  PW_LOG_DEBUG("before bld_confirm");
+  bld_confirm_running_image();
+  PW_LOG_DEBUG("after bld_confirm");
+#endif
 
   StartWorkQueueThread();
   pw::system::GetWorkQueue().CheckPushWork(StartLEDThread);

@@ -14,7 +14,7 @@
 #define BLD_CRC32_FIELD_SIZE 4u
 #define BLD_EOF_FIELD_SIZE 1u
 #define BLD_STATUS_PAYLOAD_SIZE 8u
-#define BLD_META_PAYLOAD_SIZE 13u
+#define BLD_META_PAYLOAD_SIZE 36u
 #define BLD_MAX_FRAME_SIZE 1024u
 
 enum {
@@ -29,20 +29,24 @@ static void bld_engine_reset_session(struct bld_engine *engine)
 	}
 
 	memset(&engine->session, 0, sizeof(engine->session));
+	engine->target_slot = BLD_SLOT_ID_NONE;
 }
 
-static int bld_engine_refresh_image_info(struct bld_engine *engine)
+static int bld_engine_refresh_boot_control(struct bld_engine *engine)
 {
 	if (engine == NULL) {
 		return BLD_ENGINE_ERR;
 	}
 
-	if (bld_meta_read_info(&engine->meta_storage, &engine->image_info) !=
-	    0) {
-		memset(&engine->image_info, 0, sizeof(engine->image_info));
-		engine->image_info.state = BLD_IMAGE_STATE_EMPTY;
+	if (bld_meta_read_boot_control(&engine->meta_storage,
+				       &engine->boot_ctrl) != 0) {
+		memset(&engine->boot_ctrl, 0, sizeof(engine->boot_ctrl));
+		engine->boot_ctrl.active_slot = (uint8_t)BLD_SLOT_ID_NONE;
+		engine->boot_ctrl.confirmed_slot = (uint8_t)BLD_SLOT_ID_NONE;
+		engine->boot_ctrl.pending_slot = (uint8_t)BLD_SLOT_ID_NONE;
 		return BLD_ENGINE_ERR;
 	}
+
 	return BLD_ENGINE_OK;
 }
 
@@ -50,6 +54,74 @@ static uint32_t bld_engine_frame_crc32(const uint8_t *frame,
 				       uint32_t crc_input_size)
 {
 	return bld_crc32_ieee(frame, crc_input_size, BLD_CRC32_INITIAL);
+}
+
+static int bld_engine_slot_id_valid(enum bld_slot_id slot)
+{
+	return (slot == BLD_SLOT_ID_A || slot == BLD_SLOT_ID_B) ?
+		       BLD_ENGINE_OK :
+		       BLD_ENGINE_ERR;
+}
+
+static struct bld_storage *bld_engine_slot_storage(struct bld_engine *engine,
+						   enum bld_slot_id slot)
+{
+	if (engine == NULL || bld_engine_slot_id_valid(slot) != BLD_ENGINE_OK) {
+		return NULL;
+	}
+
+	return &engine->slot_storage[(uint8_t)slot];
+}
+
+static uint32_t bld_engine_slot_base(enum bld_slot_id slot)
+{
+	return (slot == BLD_SLOT_ID_A) ? BLD_SLOT_A_BASE : BLD_SLOT_B_BASE;
+}
+
+static uint32_t bld_engine_slot_size(enum bld_slot_id slot)
+{
+	return (slot == BLD_SLOT_ID_A) ? BLD_SLOT_A_SIZE : BLD_SLOT_B_SIZE;
+}
+
+static int bld_engine_slot_is_bootable(const struct bld_boot_control *ctrl,
+				       enum bld_slot_id slot)
+{
+	uint8_t state;
+
+	if (ctrl == NULL || bld_engine_slot_id_valid(slot) != BLD_ENGINE_OK) {
+		return 0;
+	}
+
+	state = ctrl->slots[(uint8_t)slot].state;
+	return (state == (uint8_t)BLD_SLOT_STATE_CONFIRMED ||
+		state == (uint8_t)BLD_SLOT_STATE_VALID ||
+		state == (uint8_t)BLD_SLOT_STATE_PENDING);
+}
+
+static enum bld_slot_id
+bld_engine_choose_target_slot(const struct bld_boot_control *ctrl)
+{
+	if (ctrl == NULL) {
+		return BLD_SLOT_ID_A;
+	}
+
+	if (ctrl->active_slot == (uint8_t)BLD_SLOT_ID_A) {
+		return BLD_SLOT_ID_B;
+	}
+
+	if (ctrl->active_slot == (uint8_t)BLD_SLOT_ID_B) {
+		return BLD_SLOT_ID_A;
+	}
+
+	if (ctrl->confirmed_slot == (uint8_t)BLD_SLOT_ID_A) {
+		return BLD_SLOT_ID_B;
+	}
+
+	if (ctrl->confirmed_slot == (uint8_t)BLD_SLOT_ID_B) {
+		return BLD_SLOT_ID_A;
+	}
+
+	return BLD_SLOT_ID_A;
 }
 
 static int bld_engine_send_status(struct bld_engine *engine,
@@ -90,14 +162,38 @@ static int bld_engine_send_meta(struct bld_engine *engine)
 		return BLD_ENGINE_ERR;
 	}
 
+	if (bld_engine_refresh_boot_control(engine) != BLD_ENGINE_OK) {
+		memset(&engine->boot_ctrl, 0, sizeof(engine->boot_ctrl));
+		engine->boot_ctrl.active_slot = (uint8_t)BLD_SLOT_ID_NONE;
+		engine->boot_ctrl.confirmed_slot = (uint8_t)BLD_SLOT_ID_NONE;
+		engine->boot_ctrl.pending_slot = (uint8_t)BLD_SLOT_ID_NONE;
+	}
+
 	memset(&frame, 0, sizeof(frame));
 	frame.sof = BLD_SOF;
 	frame.type = BLD_PKT_META;
 	frame.len = BLD_META_PAYLOAD_SIZE;
-	frame.image_version = engine->image_info.version;
-	frame.image_size = engine->image_info.size;
-	frame.image_crc32 = engine->image_info.crc32;
-	frame.state = engine->image_info.state;
+
+	frame.active_slot = engine->boot_ctrl.active_slot;
+	frame.confirmed_slot = engine->boot_ctrl.confirmed_slot;
+	frame.pending_slot = engine->boot_ctrl.pending_slot;
+	frame.reserved0 = engine->boot_ctrl.reserved0;
+
+	frame.slot_a.version = engine->boot_ctrl.slots[BLD_SLOT_ID_A].version;
+	frame.slot_a.size = engine->boot_ctrl.slots[BLD_SLOT_ID_A].size;
+	frame.slot_a.crc32 = engine->boot_ctrl.slots[BLD_SLOT_ID_A].crc32;
+	frame.slot_a.state = engine->boot_ctrl.slots[BLD_SLOT_ID_A].state;
+	frame.slot_a.boot_attempts_left =
+		engine->boot_ctrl.slots[BLD_SLOT_ID_A].boot_attempts_left;
+	frame.slot_a.reserved = 0u;
+
+	frame.slot_b.version = engine->boot_ctrl.slots[BLD_SLOT_ID_B].version;
+	frame.slot_b.size = engine->boot_ctrl.slots[BLD_SLOT_ID_B].size;
+	frame.slot_b.crc32 = engine->boot_ctrl.slots[BLD_SLOT_ID_B].crc32;
+	frame.slot_b.state = engine->boot_ctrl.slots[BLD_SLOT_ID_B].state;
+	frame.slot_b.boot_attempts_left =
+		engine->boot_ctrl.slots[BLD_SLOT_ID_B].boot_attempts_left;
+	frame.slot_b.reserved = 0u;
 
 	crc_input_size = (uint32_t)(sizeof(frame) - sizeof(frame.crc32) -
 				    sizeof(frame.eof));
@@ -112,7 +208,7 @@ static int bld_engine_send_meta(struct bld_engine *engine)
 
 static int bld_engine_validate_common_frame(const uint8_t *buf, uint16_t len)
 {
-	if (buf == NULL || len == 0) {
+	if (buf == NULL || len == 0u) {
 		return BLD_ENGINE_ERR;
 	}
 
@@ -137,7 +233,7 @@ static int bld_engine_validate_crc(const uint8_t *buf, uint16_t len)
 	uint32_t actual_crc;
 	uint32_t crc_input_size;
 
-	if (buf == NULL || len == 0 ||
+	if (buf == NULL || len == 0u ||
 	    len < (BLD_CRC32_FIELD_SIZE + BLD_EOF_FIELD_SIZE)) {
 		return BLD_ENGINE_ERR;
 	}
@@ -149,10 +245,12 @@ static int bld_engine_validate_crc(const uint8_t *buf, uint16_t len)
 	crc_input_size =
 		(uint32_t)len - (BLD_CRC32_FIELD_SIZE + BLD_EOF_FIELD_SIZE);
 	actual_crc = bld_engine_frame_crc32(buf, crc_input_size);
+
 	return (actual_crc == expected_crc) ? BLD_ENGINE_OK : BLD_ENGINE_ERR;
 }
 
 static int bld_engine_verify_slot_image(struct bld_engine *engine,
+					enum bld_slot_id slot,
 					uint32_t image_size,
 					uint32_t image_crc32)
 {
@@ -161,8 +259,14 @@ static int bld_engine_verify_slot_image(struct bld_engine *engine,
 	uint32_t offset;
 	uint32_t crc;
 	uint32_t read_size;
+	struct bld_storage *storage;
 
-	if (engine == NULL || engine->slot_storage.read == NULL) {
+	if (engine == NULL) {
+		return BLD_ENGINE_ERR;
+	}
+
+	storage = bld_engine_slot_storage(engine, slot);
+	if (storage == NULL || storage->read == NULL) {
 		return BLD_ENGINE_ERR;
 	}
 
@@ -179,8 +283,7 @@ static int bld_engine_verify_slot_image(struct bld_engine *engine,
 				    (uint32_t)sizeof(chunk) :
 				    remaining;
 
-		if (engine->slot_storage.read(&engine->slot_storage, offset,
-					      chunk, read_size) != 0) {
+		if (storage->read(storage, offset, chunk, read_size) != 0) {
 			return BLD_ENGINE_ERR;
 		}
 
@@ -212,14 +315,19 @@ static int bld_engine_handle_cmd(struct bld_engine *engine,
 	switch (engine->state) {
 	case BLD_STATE_IDLE:
 		if (frame->cmd == BLD_CMD_META) {
-			(void)bld_engine_refresh_image_info(engine);
+			(void)bld_engine_refresh_boot_control(engine);
 			return bld_engine_send_meta(engine);
 		}
 
 		if (frame->cmd == BLD_CMD_START) {
+			(void)bld_engine_refresh_boot_control(engine);
 			bld_engine_reset_session(engine);
+			engine->target_slot = bld_engine_choose_target_slot(
+				&engine->boot_ctrl);
 			engine->state = BLD_STATE_WAIT_HEADER;
-			return bld_engine_send_status(engine, BLD_ST_OK, 0u);
+			return bld_engine_send_status(
+				engine, BLD_ST_OK,
+				(uint32_t)engine->target_slot);
 		}
 
 		if (frame->cmd == BLD_CMD_QUERY) {
@@ -246,7 +354,8 @@ static int bld_engine_handle_cmd(struct bld_engine *engine,
 			}
 
 			if (bld_engine_verify_slot_image(
-				    engine, engine->session.image_size,
+				    engine, engine->target_slot,
+				    engine->session.image_size,
 				    engine->session.image_crc32) != 0) {
 				engine->state = BLD_STATE_ERROR;
 				return bld_engine_send_status(
@@ -254,22 +363,18 @@ static int bld_engine_handle_cmd(struct bld_engine *engine,
 					engine->session.image_crc32);
 			}
 
-			if (bld_meta_write_info(&engine->meta_storage,
-						engine->session.image_version,
-						engine->session.image_size,
-						engine->session.image_crc32) !=
-			    0) {
+			if (bld_meta_set_pending(&engine->meta_storage,
+						 engine->target_slot,
+						 engine->session.image_version,
+						 engine->session.image_size,
+						 engine->session.image_crc32,
+						 BLD_MAX_BOOT_ATTEMPTS) != 0) {
 				engine->state = BLD_STATE_ERROR;
 				return bld_engine_send_status(
 					engine, BLD_ST_FLASH_ERR, 0u);
 			}
 
-			engine->image_info.version =
-				engine->session.image_version;
-			engine->image_info.size = engine->session.image_size;
-			engine->image_info.crc32 = engine->session.image_crc32;
-			engine->image_info.state = BLD_IMAGE_STATE_READY;
-
+			(void)bld_engine_refresh_boot_control(engine);
 			bld_engine_reset_session(engine);
 			engine->state = BLD_STATE_IDLE;
 			return bld_engine_send_status(engine, BLD_ST_OK, 0u);
@@ -286,6 +391,9 @@ static int bld_engine_handle_cmd(struct bld_engine *engine,
 static int bld_engine_handle_header(struct bld_engine *engine,
 				    const struct bld_header_frame *frame)
 {
+	struct bld_storage *storage;
+	uint32_t slot_size;
+
 	if (engine == NULL || frame == NULL) {
 		return BLD_ENGINE_ERR;
 	}
@@ -299,20 +407,26 @@ static int bld_engine_handle_header(struct bld_engine *engine,
 		return bld_engine_send_status(engine, BLD_ST_BAD_FRAME, 0u);
 	}
 
-	if (frame->image_size == 0u || frame->image_size > BLD_SLOT_SIZE) {
+	if (bld_engine_slot_id_valid(engine->target_slot) != BLD_ENGINE_OK) {
+		engine->state = BLD_STATE_ERROR;
+		return bld_engine_send_status(engine, BLD_ST_FLASH_ERR, 0u);
+	}
+
+	slot_size = bld_engine_slot_size(engine->target_slot);
+	if (frame->image_size == 0u || frame->image_size > slot_size) {
 		engine->state = BLD_STATE_IDLE;
 		bld_engine_reset_session(engine);
 		return bld_engine_send_status(engine, BLD_ST_TOO_LARGE,
 					      frame->image_size);
 	}
 
-	if (engine->slot_storage.erase == NULL) {
+	storage = bld_engine_slot_storage(engine, engine->target_slot);
+	if (storage == NULL || storage->erase == NULL) {
 		engine->state = BLD_STATE_ERROR;
 		return bld_engine_send_status(engine, BLD_ST_FLASH_ERR, 0u);
 	}
 
-	if (engine->slot_storage.erase(&engine->slot_storage, 0u,
-				       frame->image_size) != 0) {
+	if (storage->erase(storage, 0u, frame->image_size) != 0) {
 		engine->state = BLD_STATE_ERROR;
 		return bld_engine_send_status(engine, BLD_ST_FLASH_ERR, 0u);
 	}
@@ -334,6 +448,7 @@ static int bld_engine_handle_data(struct bld_engine *engine, const uint8_t *buf,
 	uint16_t payload_len;
 	uint16_t chunk_len;
 	uint32_t expected_total_len;
+	struct bld_storage *storage;
 
 	if (engine == NULL || buf == NULL) {
 		return BLD_ENGINE_ERR;
@@ -380,14 +495,14 @@ static int bld_engine_handle_data(struct bld_engine *engine, const uint8_t *buf,
 						      chunk_len);
 	}
 
-	if (engine->slot_storage.write == NULL) {
+	storage = bld_engine_slot_storage(engine, engine->target_slot);
+	if (storage == NULL || storage->write == NULL) {
 		engine->state = BLD_STATE_ERROR;
 		return bld_engine_send_status(engine, BLD_ST_FLASH_ERR, 0u);
 	}
 
-	if (engine->slot_storage.write(&engine->slot_storage,
-				       engine->session.received_size,
-				       frame->data, chunk_len) != 0) {
+	if (storage->write(storage, engine->session.received_size, frame->data,
+			   chunk_len) != 0) {
 		engine->state = BLD_STATE_ERROR;
 		return bld_engine_send_status(engine, BLD_ST_FLASH_ERR,
 					      engine->session.received_size);
@@ -405,63 +520,96 @@ static int bld_engine_handle_data(struct bld_engine *engine, const uint8_t *buf,
 
 int bld_engine_init(struct bld_engine *engine,
 		    const struct bld_transport *transport,
-		    const struct bld_storage *slot_storage,
+		    const struct bld_storage *slot_a_storage,
+		    const struct bld_storage *slot_b_storage,
 		    const struct bld_storage *meta_storage)
 {
-	if (engine == NULL || transport == NULL || slot_storage == NULL ||
-	    meta_storage == NULL) {
+	if (engine == NULL || transport == NULL || slot_a_storage == NULL ||
+	    slot_b_storage == NULL || meta_storage == NULL) {
 		return BLD_ENGINE_ERR;
 	}
 
 	memset(engine, 0, sizeof(*engine));
 	engine->state = BLD_STATE_IDLE;
 	engine->transport = *transport;
-	engine->slot_storage = *slot_storage;
+	engine->slot_storage[BLD_SLOT_ID_A] = *slot_a_storage;
+	engine->slot_storage[BLD_SLOT_ID_B] = *slot_b_storage;
 	engine->meta_storage = *meta_storage;
+	engine->target_slot = BLD_SLOT_ID_NONE;
 
-	/* Invalid or empty metadata is not fatal during init.
-   * Refresh falls back to EMPTY when metadata cannot be read.
-   */
-	(void)bld_engine_refresh_image_info(engine);
+	(void)bld_engine_refresh_boot_control(engine);
 	return BLD_ENGINE_OK;
 }
 
 int bld_engine_boot_decide_and_jump(struct bld_engine *engine)
 {
+	enum bld_slot_id slot;
+	uint8_t attempts_left;
+
 	if (engine == NULL) {
 		return BLD_ENGINE_ERR;
 	}
 
-	if (bld_engine_refresh_image_info(engine) != 0) {
+	if (bld_engine_refresh_boot_control(engine) != 0) {
 		return BLD_ENGINE_ERR;
 	}
 
-	if (engine->image_info.state != BLD_IMAGE_STATE_READY) {
-		(void)bld_engine_send_status(
-			engine, BLD_ST_BOOT_ERR,
-			(uint32_t)engine->image_info.state);
-		return BLD_ENGINE_ERR;
+	if (engine->boot_ctrl.pending_slot != (uint8_t)BLD_SLOT_ID_NONE) {
+		slot = (enum bld_slot_id)engine->boot_ctrl.pending_slot;
+
+		if (!bld_engine_slot_is_bootable(&engine->boot_ctrl, slot)) {
+			(void)bld_meta_mark_slot_bad(&engine->meta_storage,
+						     slot);
+			(void)bld_engine_refresh_boot_control(engine);
+		} else if (engine->boot_ctrl.slots[(uint8_t)slot]
+				   .boot_attempts_left == 0u) {
+			(void)bld_meta_mark_slot_bad(&engine->meta_storage,
+						     slot);
+			(void)bld_engine_refresh_boot_control(engine);
+		} else if (bld_engine_verify_slot_image(
+				   engine, slot,
+				   engine->boot_ctrl.slots[(uint8_t)slot].size,
+				   engine->boot_ctrl.slots[(uint8_t)slot]
+					   .crc32) == 0) {
+			if (bld_meta_decrement_pending_attempts(
+				    &engine->meta_storage, &attempts_left) ==
+			    0) {
+				(void)bld_engine_send_status(engine, BLD_ST_OK,
+							     (uint32_t)slot);
+				bld_jump_to_image(bld_engine_slot_base(slot));
+				return BLD_ENGINE_OK;
+			}
+
+			(void)bld_meta_mark_slot_bad(&engine->meta_storage,
+						     slot);
+			(void)bld_engine_refresh_boot_control(engine);
+		} else {
+			(void)bld_meta_mark_slot_bad(&engine->meta_storage,
+						     slot);
+			(void)bld_engine_refresh_boot_control(engine);
+		}
 	}
 
-	if (bld_engine_verify_slot_image(engine, engine->image_info.size,
-					 engine->image_info.crc32) != 0) {
-		engine->image_info.state = BLD_IMAGE_STATE_CORRUPTED;
+	if (engine->boot_ctrl.confirmed_slot != (uint8_t)BLD_SLOT_ID_NONE) {
+		slot = (enum bld_slot_id)engine->boot_ctrl.confirmed_slot;
 
-		(void)bld_meta_set_state(&engine->meta_storage,
-					 BLD_IMAGE_STATE_CORRUPTED);
+		if (bld_engine_verify_slot_image(
+			    engine, slot,
+			    engine->boot_ctrl.slots[(uint8_t)slot].size,
+			    engine->boot_ctrl.slots[(uint8_t)slot].crc32) ==
+		    0) {
+			(void)bld_engine_send_status(engine, BLD_ST_OK,
+						     (uint32_t)slot);
+			bld_jump_to_image(bld_engine_slot_base(slot));
+			return BLD_ENGINE_OK;
+		}
 
-		(void)bld_engine_send_status(
-			engine, BLD_ST_BOOT_ERR,
-			(uint32_t)engine->image_info.state);
-		return BLD_ENGINE_ERR;
+		(void)bld_meta_mark_slot_bad(&engine->meta_storage, slot);
+		(void)bld_engine_refresh_boot_control(engine);
 	}
 
-	(void)bld_engine_send_status(engine, BLD_ST_OK, 0u);
-
-	bld_jump_to_image(BLD_SLOT_BASE);
-
-	/* Unreachable in production, useful for tests/static analysis */
-	return BLD_ENGINE_OK;
+	(void)bld_engine_send_status(engine, BLD_ST_BOOT_ERR, 0u);
+	return BLD_ENGINE_ERR;
 }
 
 void bld_engine_poll(struct bld_engine *engine, uint32_t frame_timeout_ms)
@@ -485,27 +633,29 @@ void bld_engine_poll(struct bld_engine *engine, uint32_t frame_timeout_ms)
 	}
 
 	/* Timeout/no frame */
-	if (frame_len == 0u) {
+	if (frame_len == 0) {
 		return;
 	}
 
-	if (bld_engine_validate_common_frame(frame_buf, frame_len) != 0) {
+	if (bld_engine_validate_common_frame(frame_buf, (uint16_t)frame_len) !=
+	    0) {
 		(void)bld_engine_send_status(engine, BLD_ST_BAD_FRAME,
-					     frame_len);
+					     (uint32_t)frame_len);
 		return;
 	}
 
-	if (bld_engine_validate_crc(frame_buf, frame_len) != 0) {
-		(void)bld_engine_send_status(engine, BLD_ST_BAD_CRC, frame_len);
+	if (bld_engine_validate_crc(frame_buf, (uint16_t)frame_len) != 0) {
+		(void)bld_engine_send_status(engine, BLD_ST_BAD_CRC,
+					     (uint32_t)frame_len);
 		return;
 	}
 
 	frame_type = frame_buf[1];
 
 	if (frame_type == BLD_PKT_CMD) {
-		if (frame_len != sizeof(struct bld_cmd_frame)) {
+		if ((uint16_t)frame_len != sizeof(struct bld_cmd_frame)) {
 			(void)bld_engine_send_status(engine, BLD_ST_BAD_FRAME,
-						     frame_len);
+						     (uint32_t)frame_len);
 			return;
 		}
 
@@ -515,9 +665,9 @@ void bld_engine_poll(struct bld_engine *engine, uint32_t frame_timeout_ms)
 	}
 
 	if (frame_type == BLD_PKT_HEADER) {
-		if (frame_len != sizeof(struct bld_header_frame)) {
+		if ((uint16_t)frame_len != sizeof(struct bld_header_frame)) {
 			(void)bld_engine_send_status(engine, BLD_ST_BAD_FRAME,
-						     frame_len);
+						     (uint32_t)frame_len);
 			return;
 		}
 
@@ -527,9 +677,11 @@ void bld_engine_poll(struct bld_engine *engine, uint32_t frame_timeout_ms)
 	}
 
 	if (frame_type == BLD_PKT_DATA) {
-		(void)bld_engine_handle_data(engine, frame_buf, frame_len);
+		(void)bld_engine_handle_data(engine, frame_buf,
+					     (uint16_t)frame_len);
 		return;
 	}
 
-	(void)bld_engine_send_status(engine, BLD_ST_BAD_FRAME, frame_type);
+	(void)bld_engine_send_status(engine, BLD_ST_BAD_FRAME,
+				     (uint32_t)frame_type);
 }

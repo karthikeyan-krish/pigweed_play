@@ -44,9 +44,10 @@ struct bld_session {
 struct bld_engine {
 	enum bld_state state;
 	struct bld_transport transport;
-	struct bld_storage slot_storage;
+	struct bld_storage slot_storage[2];
 	struct bld_storage meta_storage;
-	struct bld_image_info image_info;
+	struct bld_boot_control boot_ctrl;
+	enum bld_slot_id target_slot;
 	struct bld_session session;
 };
 
@@ -58,7 +59,8 @@ struct bld_engine {
  */
 int bld_engine_init(struct bld_engine *engine,
 		    const struct bld_transport *transport,
-		    const struct bld_storage *slot_storage,
+		    const struct bld_storage *slot_a_storage,
+		    const struct bld_storage *slot_b_storage,
 		    const struct bld_storage *meta_storage);
 
 /*

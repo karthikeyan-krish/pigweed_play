@@ -5,7 +5,6 @@ load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile
 load("@pigweed//pw_build:pigweed.bzl", "pw_cc_test")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
-
 package(default_visibility = ["//visibility:public"])
 
 exports_files([
@@ -13,7 +12,35 @@ exports_files([
 ])
 
 cc_library(
+    name = "startup",
+    srcs = ["startup/startup_stm32l475xx.s"],
+    alwayslink = True,
+)
+
+################################################################################
+# bootloader                                                                   #
+################################################################################
+
+cc_binary(
+    name = "bootloader",
+    srcs = [
+        "startup/startup_stm32l475xx.s",
+    ],
+    deps = [
+        ":bootloader_lib",
+    ],
+    copts = ["-mcpu=cortex-m4", "-mthumb"],
+    linkopts = [
+        "-T$(location //targets/stm32l4xx:bootloader_linker_script)",
+    ],
+    additional_linker_inputs = [
+        "//targets/stm32l4xx:bootloader_linker_script",
+    ],
+)
+
+cc_library(
     name = "bootloader_lib",
+    alwayslink = True,
     srcs = glob(
     [
         "include/main.h",
@@ -44,23 +71,6 @@ cc_library(
     copts = ["-mcpu=cortex-m4", "-mthumb"],
 )
 
-cc_binary(
-    name = "bootloader",
-    srcs = [
-        "startup/startup_stm32l475xx.s",
-    ],
-    deps = [
-        ":bootloader_lib",
-    ],
-    copts = ["-mcpu=cortex-m4", "-mthumb"],
-    linkopts = [
-        "-T$(location //targets/stm32l4xx:bootloader_linker_script)",
-    ],
-    additional_linker_inputs = [
-        "//targets/stm32l4xx:bootloader_linker_script",
-    ],
-)
-
 cc_library(
     name = "bootloader_core",
     srcs = [
@@ -75,9 +85,7 @@ cc_library(
         "src/bootloader/include",
         "src/bootloader",
     ],
-    deps = [
-        "@pigweed//pw_log",
-    ],
+    deps = ["@pigweed//pw_log",],
 )
 
 cc_library(
@@ -92,9 +100,6 @@ cc_library(
         "src/bootloader/include",
         "src/bootloader",
     ],
-    deps = [
-        "@pigweed//pw_log",
-    ],
 )
 
 cc_library(
@@ -108,9 +113,6 @@ cc_library(
     includes = [
         "src/bootloader/include",
         "src/bootloader",
-    ],
-    deps = [
-        "@pigweed//pw_log",
     ],
 )
 
@@ -137,6 +139,22 @@ cc_library(
         "@stm32l4xx_hal_driver//:hal_driver",
     ],
 )
+
+stm32l4xx_cc_binary(
+    name = "bootloader.elf",
+    binary = ":bootloader",
+    platform = "//targets/stm32l4xx:bootloader_platform",
+)
+
+pw_elf_to_bin(
+    name = "bootloader_bin",
+    bin_out = "bootloader.bin",
+    elf_input = ":bootloader.elf",
+)
+
+################################################################################
+# bootloader test                                                              #
+################################################################################
 
 pw_cc_test(
     name = "bld_crc32_test",
@@ -213,30 +231,63 @@ pw_cc_test(
     ],
 )
 
-stm32l4xx_cc_binary(
-    name = "bootloader.elf",
-    binary = ":bootloader",
-    platform = "//targets/stm32l4xx:bootloader_platform",
+################################################################################
+# application                                                                  #
+################################################################################
+
+cc_binary(
+    name = "application",
+    srcs = ["src/application/main.cc"],
+    deps = [
+        ":application_lib",
+        ":startup",
+        "//targets/stm32l4xx:linker_script",
+    ],
+    copts = ["-mcpu=cortex-m4", "-mthumb"],
 )
 
-pw_elf_to_bin(
-    name = "bootloader_bin",
-    bin_out = "bootloader.bin",
-    elf_input = ":bootloader.elf",
+cc_binary(
+    name = "application_slot_a",
+    srcs = ["src/application/main.cc"],
+    deps = [
+        ":application_lib",
+        ":startup",
+        "//targets/stm32l4xx:application_linker_script_a",
+    ],
+    copts = [
+        "-mcpu=cortex-m4",
+        "-mthumb",
+        "-DBLD_APP_SLOT_BUILD=1"],
+)
+
+cc_binary(
+    name = "application_slot_b",
+    srcs = ["src/application/main.cc"],
+    deps = [
+        ":application_lib",
+        ":startup",
+        "//targets/stm32l4xx:application_linker_script_b",
+    ],
+    copts = [
+        "-mcpu=cortex-m4",
+        "-mthumb",
+        "-DBLD_APP_SLOT_BUILD=1"],
 )
 
 cc_library(
     name = "application_lib",
-    srcs = glob([
+    alwayslink = True,
+    srcs = glob(
+    [
+        "include/main.h",
+        "src/application/*.h",
         "src/application/*.cc",
         "src/application/*.c",
-        "src/bsp/*.c",
-    ]),
-    hdrs = glob([
-        "include/*.h",
-        "src/application/*.h",
         "src/bsp/*.h",
-    ]),
+        "src/bsp/*.c",
+    ],
+    exclude = ["src/application/main.cc"],
+    ),
     includes = [
         "include",
         "src/application",
@@ -245,6 +296,7 @@ cc_library(
     deps = [
         ":active_object_lib",
         ":state_machine_lib",
+        ":bootloader_confirm_lib",
         "@cmsis_device//:default_cmsis_init", 
         "@stm32l4xx_hal_driver//:hal_driver",
         "@freertos",
@@ -264,43 +316,10 @@ cc_library(
     copts = ["-mcpu=cortex-m4", "-mthumb"],
 )
 
-cc_binary(
-    name = "application_slot_a",
-    srcs = [
-        "startup/startup_stm32l475xx.s",
-    ],
-    deps = [
-        ":application_lib",
-    ],
-    copts = ["-mcpu=cortex-m4", "-mthumb"],
-    linkopts = [
-        "-T$(location //targets/stm32l4xx:application_linker_script_a)",
-    ],
-    additional_linker_inputs = [
-        "//targets/stm32l4xx:application_linker_script_a",
-    ],
-)
-
-cc_binary(
-    name = "application_slot_b",
-    srcs = [
-        "startup/startup_stm32l475xx.s",
-    ],
-    deps = [
-        ":application_lib",
-    ],
-    copts = ["-mcpu=cortex-m4", "-mthumb"],
-    linkopts = [
-        "-T$(location //targets/stm32l4xx:application_linker_script_b)",
-    ],
-    additional_linker_inputs = [
-        "//targets/stm32l4xx:application_linker_script_b",
-    ],
-)
-
 cc_library(
     name = "active_object_lib",
     hdrs = glob(["src/application/threads/active_object.h",]),
+    includes = ["src/application/threads"],
     deps = [
         "@pigweed//pw_assert:backend_impl",
         "@pigweed//pw_assert:check_backend_impl",
@@ -317,11 +336,56 @@ cc_library(
     name = "state_machine_lib",
     hdrs = glob(["src/application/threads/state_machine.h",]),
     srcs = ["src/application/threads/state_machine.cc"],
+    includes = ["src/application/threads"],
     deps = [
         "@pigweed//pw_function",
         "@pigweed//pw_log",
     ],
 )
+
+    deps = [
+    ],
+)
+
+stm32l4xx_cc_binary(
+    name = "application.elf",
+    binary = ":application",
+    platform = "//targets/stm32l4xx:application_platform",
+)
+
+stm32l4xx_cc_binary(
+    name = "application_slot_a.elf",
+    binary = ":application_slot_a",
+    platform = "//targets/stm32l4xx:application_platform",
+)
+
+stm32l4xx_cc_binary(
+    name = "application_slot_b.elf",
+    binary = ":application_slot_b",
+    platform = "//targets/stm32l4xx:application_platform",
+)
+
+pw_elf_to_bin(
+    name = "application_bin",
+    bin_out = "application.bin",
+    elf_input = ":application.elf",
+)
+
+pw_elf_to_bin(
+    name = "application_slot_a_bin",
+    bin_out = "application_slot_a.bin",
+    elf_input = ":application_slot_a.elf",
+)
+
+pw_elf_to_bin(
+    name = "application_slot_b_bin",
+    bin_out = "application_slot_b.bin",
+    elf_input = ":application_slot_b.elf",
+)
+
+################################################################################
+# application test                                                             #
+################################################################################
 
 pw_cc_test(
     name = "active_object_test",
@@ -336,27 +400,9 @@ pw_cc_test(
     ],
 )
 
-stm32l4xx_cc_binary(
-    name = "application_slot_a.elf",
-    binary = ":application_slot_a",
-)
-
-stm32l4xx_cc_binary(
-    name = "application_slot_b.elf",
-    binary = ":application_slot_b",
-)
-
-pw_elf_to_bin(
-    name = "application_slot_a_bin",
-    bin_out = "application_slot_a.bin",
-    elf_input = ":application_slot_a.elf",
-)
-
-pw_elf_to_bin(
-    name = "application_slot_b_bin",
-    bin_out = "application_slot_b.bin",
-    elf_input = ":application_slot_b.elf",
-)
+################################################################################
+# compilation database                                                         #
+################################################################################
 
 refresh_compile_commands(
     name = "compdb",
